@@ -15,9 +15,10 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import AppLoader from '@/components/shared/AppLoader';
+import { createUserAccount } from '@/lib/appwrite/api';
 
 const SignupForm = () => {
-  const isLoading = true;
+  const isLoading = false;
 
   // 1. Define your form.
   const form = useForm<z.infer<typeof signUpValidation>>({
@@ -31,10 +32,10 @@ const SignupForm = () => {
   });
 
   // 2. Define a submit handler.
-  function onSubmit(values: z.infer<typeof signUpValidation>) {
-    // Do something with the form values.
-    // ✅ This will be type-safe and validated.
-    console.log(values);
+  async function onSubmit(values: z.infer<typeof signUpValidation>) {
+    const newUser = await createUserAccount(values);
+    console.log('Data yang akan dikirim ke Appwrite:', values);
+    console.log(newUser);
   }
 
   return (
