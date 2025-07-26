@@ -1,10 +1,10 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+
 import { signUpValidation } from '@/lib/validation';
 import { useToast } from '@/hooks/use-toast';
-
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -20,17 +20,20 @@ import {
   useCreateUserAccount,
   useSignInAccount,
 } from '@/lib/tanstack-query/queriesAndMutations';
+import { useUserContext } from '@/context/AuthContext';
 
 const SignupForm = () => {
   const { toast } = useToast();
+  const { checkAuthUser } = useUserContext();
+  const navigate = useNavigate();
 
-  const { mutateAsync: createUserAccount, isPending: isCreatingUser } =
+  // Custom hooks dari TanStack Query untuk setiap aksi
+  const { mutateAsync: createUserAccount, isPending: isCreatingAccount } =
     useCreateUserAccount();
-
   const { mutateAsync: signInAccount, isPending: isSigningIn } =
     useSignInAccount();
 
-  // 1. Define your form.
+  // Definisi form dengan Zod sebagai resolver
   const form = useForm<z.infer<typeof signUpValidation>>({
     resolver: zodResolver(signUpValidation),
     defaultValues: {
@@ -41,25 +44,41 @@ const SignupForm = () => {
     },
   });
 
-  // 2. Define a submit handler.
+  // Handler untuk submit form
   async function onSubmit(values: z.infer<typeof signUpValidation>) {
-    const newUser = await createUserAccount(values);
+    try {
+      // 1. Buat akun otentikasi dan simpan ke database
+      const newUser = await createUserAccount(values);
 
-    if (!newUser) {
-      return toast({
-        title: 'Sign up failed, Please try again.',
+      if (!newUser) {
+        toast({ title: 'Sign up failed. Please try again.' });
+        return;
+      }
+
+      // 2. Buat sesi login untuk pengguna baru
+      const session = await signInAccount({
+        email: values.email,
+        password: values.password,
       });
-    }
 
-    const session = await signInAccount({
-      email: values.email,
-      password: values.password,
-    });
+      if (!session) {
+        toast({ title: 'Sign in failed after registration. Please log in.' });
+        navigate('/sign-in');
+        return;
+      }
 
-    if (!session) {
-      return toast({
-        title: 'Sign in failed, Please Try Again',
-      });
+      // 3. Perbarui state global untuk menandakan pengguna sudah login
+      const isLoggedIn = await checkAuthUser();
+
+      if (isLoggedIn) {
+        form.reset();
+        // Navigasi akan ditangani oleh AuthLayout secara otomatis
+      } else {
+        toast({ title: 'Sign in failed. Please try again.' });
+      }
+    } catch (error) {
+      console.error(error);
+      toast({ title: 'An error occurred. Please try again.' });
     }
   }
 
@@ -67,7 +86,8 @@ const SignupForm = () => {
     <Form {...form}>
       <div className="flex-center flex-col sm:w-420">
         <img src="/assets/images/logo.svg" alt="logo" />
-        <h2 className="pt-5 sm:pt-12 h3-bold md:h2-bold">
+
+        <h2 className="h3-bold md:h2-bold pt-5 sm:pt-12">
           Create a new account
         </h2>
         <p className="text-light-3 small-medium md:base-regular mt-2">
@@ -78,6 +98,7 @@ const SignupForm = () => {
           onSubmit={form.handleSubmit(onSubmit)}
           className="flex flex-col gap-5 w-full mt-4"
         >
+          {/* ... Field untuk Nama, Username, Email, Password ... */}
           <FormField
             control={form.control}
             name="name"
@@ -91,7 +112,6 @@ const SignupForm = () => {
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="username"
@@ -105,7 +125,6 @@ const SignupForm = () => {
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="email"
@@ -119,7 +138,6 @@ const SignupForm = () => {
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="password"
@@ -133,8 +151,9 @@ const SignupForm = () => {
               </FormItem>
             )}
           />
+
           <Button type="submit" className="shad-button_primary">
-            {isCreatingUser ? (
+            {isCreatingAccount || isSigningIn ? (
               <div className="flex-center gap-2">
                 <AppLoader /> Loading...
               </div>
@@ -144,12 +163,13 @@ const SignupForm = () => {
           </Button>
 
           <p className="text-small-regular text-light-2 text-center mt-2">
-            Already have an account?{' '}
-            <span>
-              <Link to="/sign-in" className="text-primary-500 font-semibold">
-                Log in
-              </Link>
-            </span>
+            Already have an account?
+            <Link
+              to="/sign-in"
+              className="text-primary-500 text-small-semibold ml-1"
+            >
+              Log in
+            </Link>
           </p>
         </form>
       </div>
