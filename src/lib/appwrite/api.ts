@@ -49,6 +49,7 @@ export async function saveUserToDB(user: {
     return newUser;
   } catch (error) {
     console.log(error);
+    throw error;
   }
 }
 
