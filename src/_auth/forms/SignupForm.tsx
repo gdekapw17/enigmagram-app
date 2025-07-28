@@ -15,7 +15,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import AppLoader from '@/components/shared/AppLoader';
+import { AppLoader } from '@/components/shared';
 import {
   useCreateUserAccount,
   useSignInAccount,
@@ -164,11 +164,8 @@ const SignupForm = () => {
 
           <p className="text-small-regular text-light-2 text-center mt-2">
             Already have an account?
-            <Link
-              to="/sign-in"
-              className="text-primary-500 text-small-semibold ml-1"
-            >
-              Log in
+            <Link to="/sign-in" className="text-primary-500 font-semibold ml-1">
+              Sign in
             </Link>
           </p>
         </form>
