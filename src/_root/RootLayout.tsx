@@ -1,14 +1,21 @@
 import { useUserContext } from '@/context/AuthContext';
 import { Outlet, Navigate } from 'react-router-dom';
-import { Topbar, LeftSidebar, Bottombar } from '@/components/shared';
+import { Topbar, LeftSidebar, Bottombar, AppLoader } from '@/components/shared';
 
 const RootLayout = () => {
-  const { isAuthenticated } = useUserContext();
+  const { isAuthenticated, isLoading } = useUserContext();
 
-  return (
-    <>
-      {isAuthenticated ? (
-        // Jika sudah login, tampilkan halaman privat
+  if (isLoading) {
+    return (
+      <div className="flex-center h-screen w-full">
+        <AppLoader />
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return (
+      <>
         <div className="w-full md:flex">
           <Topbar />
           <LeftSidebar />
@@ -19,11 +26,10 @@ const RootLayout = () => {
 
           <Bottombar />
         </div>
-      ) : (
-        // Jika belum login, paksa ke halaman sign-in
-        <Navigate to="/sign-in" />
-      )}
-    </>
-  );
+      </>
+    );
+  }
+
+  return <Navigate to="/sign-in" />;
 };
 export default RootLayout;

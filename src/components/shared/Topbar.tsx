@@ -1,9 +1,17 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
-import { useSignInAccount } from '@/lib/tanstack-query/queriesAndMutations';
+import { useSignOutAccount } from '@/lib/tanstack-query/queriesAndMutations';
+import { useEffect } from 'react';
 
 const Topbar = () => {
-  const { mutate: signOut, isSuccess } = useSignInAccount();
+  const { mutate: signOut, isSuccess } = useSignOutAccount();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isSuccess) {
+      navigate(0);
+    }
+  }, [isSuccess]);
 
   return (
     <section className="topbar">
@@ -21,7 +29,7 @@ const Topbar = () => {
           <Button
             variant="ghost"
             className="shad-button_ghost"
-            onClick={() => signOut}
+            onClick={() => signOut()}
           >
             <img src="/assets/icons/logout.svg" alt="logout" />
           </Button>

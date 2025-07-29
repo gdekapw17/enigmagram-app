@@ -94,5 +94,6 @@ export async function signOutAccount() {
     return session;
   } catch (error) {
     console.log(error);
+    throw error;
   }
 }
