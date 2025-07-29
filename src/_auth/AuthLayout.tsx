@@ -5,7 +5,6 @@ import AppLoader from '@/components/shared/AppLoader';
 const AuthLayout = () => {
   const { isAuthenticated, isLoading } = useUserContext();
 
-  // 1. Tampilkan loader selama pengecekan berlangsung
   if (isLoading) {
     return (
       <div className="flex-center w-full h-screen">
@@ -14,12 +13,10 @@ const AuthLayout = () => {
     );
   }
 
-  // 2. Jika sudah tidak loading DAN sudah login, alihkan dari halaman ini
   if (isAuthenticated) {
     return <Navigate to="/" />;
   }
 
-  // 3. Jika sudah tidak loading DAN tidak login, tampilkan halaman sign-in/up
   return (
     <>
       <section className="flex flex-1 justify-center items-center flex-col py-10">

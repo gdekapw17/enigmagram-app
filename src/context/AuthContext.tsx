@@ -54,7 +54,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    // Cek otentikasi saat aplikasi pertama kali dimuat
     checkAuthUser();
   }, []);
 
@@ -72,5 +71,4 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 export default AuthProvider;
 
-// Custom hook agar lebih mudah digunakan
 export const useUserContext = () => useContext(AuthContext);
