@@ -12,28 +12,32 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '../ui/textarea';
+import FileUploader from '../shared/FileUploader'; // ✅ Impor komponen baru
 
-const formSchema = z.object({
-  username: z.string().min(2, {
-    message: 'Username must be at least 2 characters.',
-  }),
+// ✅ Gunakan skema validasi yang sudah diperbaiki
+const PostValidation = z.object({
+  caption: z.string().min(5).max(2200),
+  file: z.custom<File[]>(),
+  location: z.string().min(2).max(100),
+  tags: z.string(),
 });
+
 const PostForm = () => {
-  // 1. Define your form.
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  // 1. Definisikan form Anda
+  const form = useForm<z.infer<typeof PostValidation>>({
+    resolver: zodResolver(PostValidation),
     defaultValues: {
-      username: '',
+      caption: '',
+      file: [], // ✅ Atur default value untuk file
+      location: '',
+      tags: '',
     },
   });
 
-  // 2. Define a submit handler.
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    // Do something with the form values.
-    // ✅ This will be type-safe and validated.
+  // 2. Definisikan submit handler
+  function onSubmit(values: z.infer<typeof PostValidation>) {
     console.log(values);
   }
-
   return (
     <Form {...form}>
       <form
@@ -64,10 +68,8 @@ const PostForm = () => {
             <FormItem>
               <FormLabel className="shad-form_label">Add Photos</FormLabel>
               <FormControl>
-                <Textarea
-                  className="shad-textarea custom-scrollbar"
-                  {...field}
-                />
+                {/* ✅ Gunakan FileUploader di sini */}
+                <FileUploader fieldChange={field.onChange} />
               </FormControl>
               <FormMessage className="shad-form_message" />
             </FormItem>
