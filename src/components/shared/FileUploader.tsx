@@ -3,22 +3,21 @@ import { useDropzone } from 'react-dropzone';
 import type { FileWithPath } from 'react-dropzone';
 import { Button } from '../ui/button';
 
+// ✅ Ubah props untuk menerima seluruh 'field'
 type FileUploaderProps = {
-  fieldChange: (files: File[]) => void;
+  field: any; // Anda bisa membuat tipe yang lebih spesifik jika mau
   mediaUrl?: string;
 };
 
-const FileUploader = ({ fieldChange, mediaUrl }: FileUploaderProps) => {
+const FileUploader = ({ field, mediaUrl }: FileUploaderProps) => {
   const [file, setFile] = useState<File[]>([]);
   const [fileUrl, setFileUrl] = useState<string | undefined>(mediaUrl);
 
   const onDrop = useCallback(
     (acceptedFiles: FileWithPath[]) => {
-      // Kirim file ke react-hook-form
-      fieldChange(acceptedFiles);
-      // Simpan file untuk preview
+      // Sekarang kita panggil field.onChange langsung dari sini
+      field.onChange(acceptedFiles);
       setFile(acceptedFiles);
-      // Buat URL preview
       setFileUrl(URL.createObjectURL(acceptedFiles[0]));
     },
     [file],
@@ -33,7 +32,9 @@ const FileUploader = ({ fieldChange, mediaUrl }: FileUploaderProps) => {
 
   return (
     <div
+      // ✅ Sebarkan props dari 'field' di sini, ini akan menyertakan onBlur
       {...getRootProps()}
+      {...field}
       className="flex flex-center flex-col bg-dark-3 rounded-xl cursor-pointer"
     >
       <input {...getInputProps()} className="cursor-pointer" />

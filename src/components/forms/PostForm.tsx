@@ -32,6 +32,7 @@ const PostForm = () => {
       location: '',
       tags: '',
     },
+    mode: 'onSubmit',
   });
 
   // 2. Definisikan submit handler
@@ -68,8 +69,8 @@ const PostForm = () => {
             <FormItem>
               <FormLabel className="shad-form_label">Add Photos</FormLabel>
               <FormControl>
-                {/* ✅ Gunakan FileUploader di sini */}
-                <FileUploader fieldChange={field.onChange} />
+                {/* ✅ Teruskan seluruh 'field' ke dalam props */}
+                <FileUploader field={field} />
               </FormControl>
               <FormMessage className="shad-form_message" />
             </FormItem>
