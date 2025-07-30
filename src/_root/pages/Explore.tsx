@@ -1,7 +1,20 @@
-import React from 'react';
+import { useState } from 'react';
 
 const Explore = () => {
-  return <div>Explore</div>;
+  const [count, setCount] = useState(0);
+
+  return (
+    <div>
+      <button
+        onClick={() => {
+          setCount((count) => count + 1);
+        }}
+      >
+        add
+      </button>
+      <p>{count}</p>
+    </div>
+  );
 };
 
 export default Explore;

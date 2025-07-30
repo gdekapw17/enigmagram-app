@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -43,7 +42,7 @@ const PostForm = () => {
       >
         <FormField
           control={form.control}
-          name="username"
+          name="caption"
           render={({ field }) => (
             <FormItem>
               <FormLabel className="shad-form_label">Caption</FormLabel>
@@ -57,7 +56,67 @@ const PostForm = () => {
             </FormItem>
           )}
         />
-        <Button type="submit">Submit</Button>
+
+        <FormField
+          control={form.control}
+          name="file"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="shad-form_label">Add Photos</FormLabel>
+              <FormControl>
+                <Textarea
+                  className="shad-textarea custom-scrollbar"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage className="shad-form_message" />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="location"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="shad-form_label">Add Location</FormLabel>
+              <FormControl>
+                <Input className="shad-input" {...field} />
+              </FormControl>
+              <FormMessage className="shad-form_message" />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="tags"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="shad-form_label">
+                Add Tags (separated by comma ",")
+              </FormLabel>
+              <FormControl>
+                <Input
+                  className="shad-input"
+                  type="text"
+                  placeholder="Art, Expressions, Learn"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage className="shad-form_message" />
+            </FormItem>
+          )}
+        />
+
+        <div className="flex items-center gap-4 justify-end">
+          <Button type="button" className="shad-button_dark_4">
+            Cancel
+          </Button>
+          <Button type="submit" className="shad-button_primary">
+            Submit
+          </Button>
+        </div>
       </form>
     </Form>
   );
