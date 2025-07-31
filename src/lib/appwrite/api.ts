@@ -1,7 +1,7 @@
 import { ID, Query } from 'appwrite';
 
 import type { INewUser } from '@/types';
-import { account, appwriteConfig, avatars, databases } from './config';
+import { account, appwriteConfig, avatars, databases, storage } from './config';
 
 export async function createUserAccount(user: INewUser) {
   try {
@@ -92,6 +92,74 @@ export async function signOutAccount() {
     const session = await account.deleteSession('current');
 
     return session;
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}
+
+export async function uploadFile(file: File) {
+  try {
+    const uploadedFile = await storage.createFile(
+      appwriteConfig.storageId,
+      ID.unique(),
+      file,
+    );
+    return uploadedFile;
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}
+
+export async function createPost(post: {
+  userId: string;
+  caption: string;
+  file: File[];
+  location: string;
+  tags: string;
+}) {
+  try {
+    // 1. Unggah file terlebih dahulu
+    const uploadedFile = await uploadFile(post.file[0]);
+
+    if (!uploadedFile) throw Error('File upload failed');
+
+    // 2. Dapatkan URL file yang sudah diunggah
+    const fileUrl = storage.getFilePreview(
+      appwriteConfig.storageId,
+      uploadedFile.$id,
+    );
+
+    if (!fileUrl) {
+      await storage.deleteFile(appwriteConfig.storageId, uploadedFile.$id);
+      throw Error('Failed to get file URL');
+    }
+
+    // 3. Ubah string tags menjadi array
+    const tags = post.tags.replace(/ /g, '').split(',');
+
+    // 4. Buat dokumen postingan di database
+    const newPost = await databases.createDocument(
+      appwriteConfig.databaseId,
+      appwriteConfig.postCollectionId,
+      ID.unique(),
+      {
+        creator: post.userId,
+        caption: post.caption,
+        imageUrl: fileUrl,
+        imageId: uploadedFile.$id,
+        location: post.location,
+        tags: tags,
+      },
+    );
+
+    if (!newPost) {
+      await storage.deleteFile(appwriteConfig.storageId, uploadedFile.$id);
+      throw Error('Failed to create post');
+    }
+
+    return newPost;
   } catch (error) {
     console.log(error);
     throw error;

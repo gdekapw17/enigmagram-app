@@ -1,6 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { useUserContext } from '@/context/AuthContext';
+import { useCreatePost } from '@/lib/tanstack-query/queriesAndMutations';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -10,12 +13,18 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '../ui/textarea';
 import { PostValidation } from '@/lib/validation';
-import FileUploader from '../shared/FileUploader';
-
+import { FileUploader, AppLoader } from '../shared';
 const PostForm = () => {
+  const { user } = useUserContext();
+  const { mutateAsync: createPost, isPending: isLoadingCreate } =
+    useCreatePost();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
   // 1. Definisikan form Anda
   const form = useForm<z.infer<typeof PostValidation>>({
     resolver: zodResolver(PostValidation),
@@ -28,8 +37,19 @@ const PostForm = () => {
   });
 
   // 2. Definisikan submit handler
-  function onSubmit(values: z.infer<typeof PostValidation>) {
-    console.log(values);
+  async function onSubmit(values: z.infer<typeof PostValidation>) {
+    const newPost = await createPost({
+      ...values,
+      userId: user.id,
+    });
+
+    if (!newPost) {
+      toast({
+        title: 'Please try again',
+      });
+    }
+
+    navigate('/');
   }
   return (
     <Form {...form}>
@@ -37,6 +57,20 @@ const PostForm = () => {
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-9 w-full max-w-5xl "
       >
+        <FormField
+          control={form.control}
+          name="file"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="shad-form_label">Add Photos</FormLabel>
+              <FormControl>
+                <FileUploader field={field} />
+              </FormControl>
+              <FormMessage className="shad-form_message" />
+            </FormItem>
+          )}
+        />
+
         <FormField
           control={form.control}
           name="caption"
@@ -48,21 +82,6 @@ const PostForm = () => {
                   className="shad-textarea custom-scrollbar"
                   {...field}
                 />
-              </FormControl>
-              <FormMessage className="shad-form_message" />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="file"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="shad-form_label">Add Photos</FormLabel>
-              <FormControl>
-                {/* ✅ Teruskan seluruh 'field' ke dalam props */}
-                <FileUploader field={field} />
               </FormControl>
               <FormMessage className="shad-form_message" />
             </FormItem>
@@ -108,8 +127,12 @@ const PostForm = () => {
           <Button type="button" className="shad-button_dark_4">
             Cancel
           </Button>
-          <Button type="submit" className="shad-button_primary">
-            Submit
+          <Button
+            type="submit"
+            className="shad-button_primary"
+            disabled={isLoadingCreate}
+          >
+            {isLoadingCreate ? <AppLoader /> : 'Submit'}
           </Button>
         </div>
       </form>
