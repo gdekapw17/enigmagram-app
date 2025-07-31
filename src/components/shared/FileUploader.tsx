@@ -3,24 +3,20 @@ import { useDropzone } from 'react-dropzone';
 import type { FileWithPath } from 'react-dropzone';
 import { Button } from '../ui/button';
 
-// ✅ Ubah props untuk menerima seluruh 'field'
 type FileUploaderProps = {
-  field: any; // Anda bisa membuat tipe yang lebih spesifik jika mau
+  field: any;
   mediaUrl?: string;
 };
 
 const FileUploader = ({ field, mediaUrl }: FileUploaderProps) => {
-  const [file, setFile] = useState<File[]>([]);
   const [fileUrl, setFileUrl] = useState<string | undefined>(mediaUrl);
 
   const onDrop = useCallback(
     (acceptedFiles: FileWithPath[]) => {
-      // Sekarang kita panggil field.onChange langsung dari sini
       field.onChange(acceptedFiles);
-      setFile(acceptedFiles);
       setFileUrl(URL.createObjectURL(acceptedFiles[0]));
     },
-    [file],
+    [field],
   );
 
   const { getRootProps, getInputProps } = useDropzone({
@@ -32,7 +28,6 @@ const FileUploader = ({ field, mediaUrl }: FileUploaderProps) => {
 
   return (
     <div
-      // ✅ Sebarkan props dari 'field' di sini, ini akan menyertakan onBlur
       {...getRootProps()}
       {...field}
       className="flex flex-center flex-col bg-dark-3 rounded-xl cursor-pointer"
@@ -57,7 +52,9 @@ const FileUploader = ({ field, mediaUrl }: FileUploaderProps) => {
             Drag photo here
           </h3>
           <p className="text-light-4 small-regular mb-6">SVG, PNG, JPG</p>
-          <Button className="shad-button_dark_4">Select from computer</Button>
+          <Button type="button" className="shad-button_dark_4">
+            Select from computer
+          </Button>
         </div>
       )}
     </div>

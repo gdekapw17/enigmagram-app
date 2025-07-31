@@ -12,15 +12,8 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '../ui/textarea';
-import FileUploader from '../shared/FileUploader'; // ✅ Impor komponen baru
-
-// ✅ Gunakan skema validasi yang sudah diperbaiki
-const PostValidation = z.object({
-  caption: z.string().min(5).max(2200),
-  file: z.custom<File[]>(),
-  location: z.string().min(2).max(100),
-  tags: z.string(),
-});
+import { PostValidation } from '@/lib/validation';
+import FileUploader from '../shared/FileUploader';
 
 const PostForm = () => {
   // 1. Definisikan form Anda
@@ -28,11 +21,10 @@ const PostForm = () => {
     resolver: zodResolver(PostValidation),
     defaultValues: {
       caption: '',
-      file: [], // ✅ Atur default value untuk file
+      file: [],
       location: '',
       tags: '',
     },
-    mode: 'onSubmit',
   });
 
   // 2. Definisikan submit handler
