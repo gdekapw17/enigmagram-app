@@ -5,7 +5,8 @@ import {
   signOutAccount,
   createPost,
 } from '../appwrite/api';
-import type { INewUser } from '@/types';
+import type { INewUser, INewPost } from '@/types';
+import { QUERY_KEYS } from './queryKeys';
 
 export const useCreateUserAccount = () => {
   return useMutation({
@@ -30,11 +31,10 @@ export const useCreatePost = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: createPost,
+    mutationFn: (post: INewPost) => createPost(post),
     onSuccess: () => {
-      // Invalidate query 'getRecentPosts' agar feed otomatis ter-update
       queryClient.invalidateQueries({
-        queryKey: ['getRecentPosts'],
+        queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
       });
     },
   });

@@ -116,8 +116,8 @@ export async function createPost(post: {
   userId: string;
   caption: string;
   file: File[];
-  location: string;
-  tags: string;
+  location?: string;
+  tags?: string;
 }) {
   try {
     // 1. Unggah file terlebih dahulu
@@ -137,7 +137,7 @@ export async function createPost(post: {
     }
 
     // 3. Ubah string tags menjadi array
-    const tags = post.tags.replace(/ /g, '').split(',');
+    const tags = post.tags?.replace(/ /g, '').split(',');
 
     // 4. Buat dokumen postingan di database
     const newPost = await databases.createDocument(
@@ -149,8 +149,8 @@ export async function createPost(post: {
         caption: post.caption,
         imageUrl: fileUrl,
         imageId: uploadedFile.$id,
-        location: post.location,
-        tags: tags,
+        location: post.location || '',
+        tags: tags || '',
       },
     );
 

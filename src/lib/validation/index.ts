@@ -25,6 +25,7 @@ export const PostValidation = z.object({
   location: z
     .string()
     .min(2, { message: 'Location must be at least 2 characters.' })
-    .max(100),
-  tags: z.string(),
+    .max(100)
+    .optional(),
+  tags: z.string().optional(),
 });
