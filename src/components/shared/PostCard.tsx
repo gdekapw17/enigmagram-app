@@ -2,7 +2,7 @@ import { useUserContext } from '@/context/AuthContext';
 import { multiFormatDateString } from '@/lib/utils';
 import type { Models } from 'appwrite';
 import { Link } from 'react-router-dom';
-import PostStats from './PostStats';
+// import PostStats from './PostStats';
 
 type PostCardProps = {
   post: Models.Document;
@@ -11,8 +11,11 @@ type PostCardProps = {
 const PostCard = ({ post }: PostCardProps) => {
   const { user } = useUserContext();
 
-  // Jika data creator tidak ada, jangan render apapun
-  if (!post.creator) return null;
+  console.log('Post data:', post);
+  if (!post.creator) {
+    console.log('Creator missing in post:', post.$id);
+    return null;
+  }
 
   return (
     <div className="post-card">
@@ -67,11 +70,7 @@ const PostCard = ({ post }: PostCardProps) => {
             ))}
           </ul>
         </div>
-        <img
-          src={post.imageUrl || '/assets/icons/profile-placeholder.svg'}
-          className="post-card_img"
-          alt="post image"
-        />
+        <img src={post?.imageUrl} className="post-card_img" alt="post image" />
       </Link>
 
       {/* <PostStats post={post} userId={user.id} /> */}
