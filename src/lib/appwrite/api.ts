@@ -199,7 +199,7 @@ export async function getRecentPosts() {
       [Query.orderDesc('$createdAt'), Query.limit(20)],
     );
 
-    if (posts) throw Error;
+    if (!posts) throw Error;
 
     return posts;
   } catch (error) {
