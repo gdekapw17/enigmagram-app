@@ -9,6 +9,8 @@ const Home = () => {
     isError: isPostError,
   } = useGetRecentPosts();
 
+  const off = 'sorry, im sick right now';
+
   return (
     <div className="flex flex-1">
       <div className="home-container">
