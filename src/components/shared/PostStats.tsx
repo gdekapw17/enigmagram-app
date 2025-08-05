@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Models } from 'appwrite';
 import {
   useLikePost,
   useSavePost,
   useDeleteSavedPost,
+  useGetCurrentUser,
 } from '@/lib/tanstack-query/queriesAndMutations';
-import { useUserContext } from '@/context/AuthContext';
 import { checkIsLiked } from '@/types/utils';
+import { AppLoader } from '@/components/shared';
 
 type PostStatsProps = {
   post: Models.Document;
@@ -20,17 +21,57 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
 
   const [likes, setLikes] = useState(likesList);
   const [isSaved, setIsSaved] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const { mutate: likePost } = useLikePost();
-  const { mutate: savePost } = useSavePost();
-  const { mutate: deleteSavedPost } = useDeleteSavedPost();
+  const {
+    mutate: savePost,
+    isPending: isSavingPost,
+    error: saveError,
+  } = useSavePost();
+  const {
+    mutate: deleteSavedPost,
+    isPending: isDeletingPost,
+    error: deleteError,
+  } = useDeleteSavedPost();
 
-  const { user } = useUserContext();
+  const {
+    data: currentUser,
+    isLoading: isLoadingUser,
+    isSuccess: isUserLoaded,
+  } = useGetCurrentUser();
 
-  // Optimized save check
+  const savedPostRecord = useMemo(() => {
+    if (!currentUser?.save || !Array.isArray(currentUser.save)) {
+      return null;
+    }
+
+    return currentUser.save.find(
+      (record: Models.Document) => record.post?.$id === post.$id,
+    );
+  }, [currentUser?.save, post.$id]);
+
   useEffect(() => {
-    setIsSaved(user?.save?.some((s) => s.post.$id === post.$id) ?? false);
-  }, [user, post.$id]);
+    if (isUserLoaded && currentUser) {
+      setIsSaved(!!savedPostRecord);
+      setIsInitialized(true);
+    }
+  }, [isUserLoaded, currentUser, savedPostRecord]);
+  useEffect(() => {
+    if (!currentUser && isInitialized) {
+      setIsInitialized(false);
+      setIsSaved(false);
+    }
+  }, [currentUser, isInitialized]);
+
+  useEffect(() => {
+    if (saveError) {
+      console.error('Save post error:', saveError);
+    }
+    if (deleteError) {
+      console.error('Delete saved post error:', deleteError);
+    }
+  }, [saveError, deleteError]);
 
   const handleLikePost = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -45,17 +86,33 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
     likePost({ postId: post.$id, likesArray: newLikes });
   };
 
-  const handleSave = (e: React.MouseEvent) => {
+  const handleSavePost = (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    const savedRecord = user?.save?.find((s) => s.post.$id === post.$id);
+    if (!isInitialized) return;
 
-    if (savedRecord) {
-      deleteSavedPost(savedRecord.$id);
+    if (savedPostRecord) {
+      setIsSaved(false);
+      deleteSavedPost(savedPostRecord.$id, {
+        onError: () => {
+          setIsSaved(true);
+        },
+      });
     } else {
-      savePost({ postId: post.$id, userId: user.id });
+      setIsSaved(true);
+      savePost(
+        { postId: post.$id, userId: userId },
+        {
+          onError: () => {
+            setIsSaved(false);
+          },
+        },
+      );
     }
   };
+
+  const showSaveLoader =
+    isSavingPost || isDeletingPost || isLoadingUser || !isInitialized;
 
   return (
     <div className="flex justify-between items-center z-20">
@@ -76,12 +133,18 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
       </div>
 
       <div className="flex gap-2">
-        <img
-          src={isSaved ? '/assets/icons/saved.svg' : '/assets/icons/save.svg'}
-          onClick={handleSave}
-          className="cursor-pointer"
-          alt="save"
-        />
+        {showSaveLoader ? (
+          <AppLoader />
+        ) : (
+          <img
+            src={isSaved ? '/assets/icons/saved.svg' : '/assets/icons/save.svg'}
+            alt="save"
+            width={20}
+            height={20}
+            onClick={handleSavePost}
+            className="cursor-pointer"
+          />
+        )}
       </div>
     </div>
   );

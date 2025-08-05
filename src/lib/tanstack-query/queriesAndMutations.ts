@@ -49,6 +49,8 @@ export const useGetRecentPosts = () => {
   return useQuery({
     queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
     queryFn: getRecentPosts,
+    staleTime: 1000 * 60 * 5, // 5 menit
+    gcTime: 1000 * 60 * 10, // 10 menit (sebelumnya cacheTime)
   });
 };
 
@@ -87,15 +89,54 @@ export const useSavePost = () => {
     mutationFn: ({ postId, userId }: { postId: string; userId: string }) =>
       savePost(postId, userId),
     onSuccess: () => {
+      // Invalidate queries untuk update UI
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_CURRENT_USER],
+      });
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
       });
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_POSTS],
       });
-      queryClient.invalidateQueries({
+    },
+    // Optimistic update untuk responsivitas yang lebih baik
+    onMutate: async ({ postId, userId }) => {
+      // Cancel outgoing queries
+      await queryClient.cancelQueries({
         queryKey: [QUERY_KEYS.GET_CURRENT_USER],
       });
+
+      // Snapshot previous value
+      const previousUser = queryClient.getQueryData([
+        QUERY_KEYS.GET_CURRENT_USER,
+      ]);
+
+      // Optimistically update
+      queryClient.setQueryData([QUERY_KEYS.GET_CURRENT_USER], (old: any) => {
+        if (!old) return old;
+
+        const newSave = {
+          $id: `temp-${Date.now()}`, // temporary ID
+          post: { $id: postId },
+        };
+
+        return {
+          ...old,
+          save: [...(old.save || []), newSave],
+        };
+      });
+
+      return { previousUser };
+    },
+    onError: (err, variables, context) => {
+      // Rollback on error
+      if (context?.previousUser) {
+        queryClient.setQueryData(
+          [QUERY_KEYS.GET_CURRENT_USER],
+          context.previousUser,
+        );
+      }
     },
   });
 };
@@ -107,14 +148,53 @@ export const useDeleteSavedPost = () => {
     mutationFn: (savedRecordId: string) => deleteSavedPost(savedRecordId),
     onSuccess: () => {
       queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_CURRENT_USER],
+      });
+      queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
       });
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_POSTS],
       });
-      queryClient.invalidateQueries({
+    },
+    // Optimistic update
+    onMutate: async (savedRecordId) => {
+      await queryClient.cancelQueries({
         queryKey: [QUERY_KEYS.GET_CURRENT_USER],
       });
+
+      const previousUser = queryClient.getQueryData([
+        QUERY_KEYS.GET_CURRENT_USER,
+      ]);
+
+      queryClient.setQueryData([QUERY_KEYS.GET_CURRENT_USER], (old: any) => {
+        if (!old || !old.save) return old;
+
+        return {
+          ...old,
+          save: old.save.filter((item: any) => item.$id !== savedRecordId),
+        };
+      });
+
+      return { previousUser };
     },
+    onError: (err, variables, context) => {
+      if (context?.previousUser) {
+        queryClient.setQueryData(
+          [QUERY_KEYS.GET_CURRENT_USER],
+          context.previousUser,
+        );
+      }
+    },
+  });
+};
+
+export const useGetCurrentUser = () => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GET_CURRENT_USER],
+    queryFn: getCurrentUser,
+    staleTime: 1000 * 60 * 5, // 5 menit
+    gcTime: 1000 * 60 * 30, // 30 menit
+    retry: 1, // Retry sekali jika gagal
   });
 };
