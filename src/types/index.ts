@@ -47,6 +47,10 @@ export type IUser = {
   email: string;
   imageUrl: string;
   bio: string;
+  save?: Array<{
+    $id: string;
+    post: { $id: string };
+  }>;
 };
 
 export type INewUser = {

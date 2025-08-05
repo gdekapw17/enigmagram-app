@@ -2,6 +2,7 @@ import { useUserContext } from '@/context/AuthContext';
 import type { Models } from 'appwrite';
 import { Link } from 'react-router-dom';
 import { formatRelativeTime } from '@/types/utils';
+import { PostStats } from '@/components/shared';
 
 type PostCardProps = {
   post: Models.Document;
@@ -13,7 +14,7 @@ const PostCard = ({ post }: PostCardProps) => {
   if (!post.creator) return;
   // console.log('Full user object:', user);
   // console.log('Full post creator:', post.creator);
-  console.log(post);
+  // console.log(post);
 
   return (
     <div className="post-card">
@@ -54,7 +55,6 @@ const PostCard = ({ post }: PostCardProps) => {
           />
         </Link>
       </div>
-
       <Link to={`/posts/${post.id}`}>
         <div className="small-medium lg:base-medium py-5">
           <p>{post.caption}</p>
@@ -66,9 +66,9 @@ const PostCard = ({ post }: PostCardProps) => {
             ))}
           </ul>
         </div>
-
-        <img src={post.imageUrl} alt="image-post" />
+        <img src={post.imageUrl} alt="image-post" className="post-card_img" />
       </Link>
+      <PostStats post={post} userId={user.id} />
     </div>
   );
 };

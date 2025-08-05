@@ -4,3 +4,4 @@ export { default as AppLoader } from './AppLoader';
 export { default as Bottombar } from './Bottombar';
 export { default as FileUploader } from './FileUploader';
 export { default as PostCard } from './PostCard';
+export { default as PostStats } from './PostStats';
