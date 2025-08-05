@@ -35,10 +35,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser({
           id: currentAccount.$id,
           name: currentAccount.name,
-          username: currentAccount.username,
+          username: currentAccount.username || '',
           email: currentAccount.email,
-          imageUrl: currentAccount.imageUrl,
-          bio: currentAccount.bio,
+          imageUrl:
+            currentAccount.imageUrl || '/assets/icons/profile-placeholder.svg',
+          bio: currentAccount.bio || '',
         });
         setIsAuthenticated(true);
         return true;
@@ -46,7 +47,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       return false;
     } catch (error) {
-      console.log(error);
+      console.error('Auth check failed:', error);
+      setIsAuthenticated(false);
+      setUser(INITIAL_USER);
       return false;
     } finally {
       setIsLoading(false);

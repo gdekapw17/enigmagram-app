@@ -8,6 +8,12 @@ type PostCardProps = {
 };
 
 const PostCard = ({ post }: PostCardProps) => {
+  const { user } = useUserContext();
+
+  if (!post.creator) return;
+  // console.log('Full user object:', user);
+  // console.log('Full post creator:', post.creator);
+
   return (
     <div className="post-card">
       <div className="flex-between">
@@ -21,6 +27,7 @@ const PostCard = ({ post }: PostCardProps) => {
               className="rounded-full w-12 h-12"
             />
           </Link>
+
           <div className="flex flex-col">
             <p className="base-medium lg:body-bold text-light-1">
               {post?.creator.name}
@@ -36,6 +43,15 @@ const PostCard = ({ post }: PostCardProps) => {
             </div>
           </div>
         </div>
+        <Link to={`/update-post/${post.$id}`}>
+          <img
+            src="assets/icons/edit.svg"
+            alt="edit"
+            width={20}
+            height={20}
+            className={`${post.creator.$id !== user.id && 'hidden'}`}
+          />
+        </Link>
       </div>
     </div>
   );
