@@ -9,8 +9,6 @@ const Home = () => {
     isError: isPostError,
   } = useGetRecentPosts();
 
-  const off = 'sorry, im sick right now';
-
   return (
     <div className="flex flex-1">
       <div className="home-container">
@@ -21,7 +19,7 @@ const Home = () => {
           ) : (
             <ul className="flex flex-col flex-1 gap-9 w-full">
               {posts?.documents.map((post: Models.Document) => (
-                <li key={post.$id}>
+                <li>
                   <PostCard post={post} />
                 </li>
               ))}

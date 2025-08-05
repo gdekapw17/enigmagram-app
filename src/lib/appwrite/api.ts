@@ -133,10 +133,7 @@ export async function createPost(post: {
     if (!uploadedFile) throw Error('File upload failed');
 
     // 2. Dapatkan URL file yang sudah diunggah
-    const fileUrl = await storage.getFileView(
-      appwriteConfig.storageId,
-      uploadedFile.$id,
-    );
+    const fileUrl = await getFilePreview(uploadedFile.$id);
 
     if (!fileUrl) {
       deleteFile(uploadedFile.$id);
@@ -173,11 +170,22 @@ export async function createPost(post: {
   }
 }
 
-export function getFileView(fileId: string) {
-  return `${storage.getFileView(
-    appwriteConfig.storageId,
-    fileId,
-  )}?project=${appwriteConfig.projectId}`; // ✅ Tambahkan project ID
+export function getFilePreview(fileId: string) {
+  try {
+    const fileUrl = storage.getFilePreview(
+      appwriteConfig.storageId,
+      fileId,
+      2000,
+      2000,
+      ImageGravity.Top,
+      100,
+    );
+
+    return fileUrl;
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
 }
 
 export async function deleteFile(fileId: string) {
