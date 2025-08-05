@@ -1,4 +1,4 @@
-import { ID, Query, ImageGravity } from 'appwrite';
+import { ID, Query } from 'appwrite';
 
 import type { INewUser } from '@/types';
 import { account, appwriteConfig, avatars, databases, storage } from './config';
@@ -133,7 +133,7 @@ export async function createPost(post: {
     if (!uploadedFile) throw Error('File upload failed');
 
     // 2. Dapatkan URL file yang sudah diunggah
-    const fileUrl = await getFilePreview(uploadedFile.$id);
+    const fileUrl = getFileViewUrl(uploadedFile.$id);
 
     if (!fileUrl) {
       deleteFile(uploadedFile.$id);
@@ -170,18 +170,9 @@ export async function createPost(post: {
   }
 }
 
-export function getFilePreview(fileId: string) {
+export function getFileViewUrl(fileId: string) {
   try {
-    const fileUrl = storage.getFilePreview(
-      appwriteConfig.storageId,
-      fileId,
-      2000,
-      2000,
-      ImageGravity.Top,
-      100,
-    );
-
-    return fileUrl;
+    return storage.getFileView(appwriteConfig.storageId, fileId);
   } catch (error) {
     console.log(error);
     throw error;
