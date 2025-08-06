@@ -33,7 +33,7 @@ const App = () => {
           <Route path="/saved" element={<Saved />}></Route>
           <Route path="/all-users" element={<AllUsers />}></Route>
           <Route path="/create-post" element={<CreatePost />}></Route>
-          <Route path="/update-pos:id" element={<EditPost />}></Route>
+          <Route path="/update-post/:id" element={<EditPost />}></Route>
           <Route path="/posts/:id" element={<PostDetails />}></Route>
           <Route path="/profile/:id/*" element={<Profile />}></Route>
           <Route path="/update-profile/:id" element={<UpdateProfile />}></Route>

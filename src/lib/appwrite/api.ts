@@ -1,6 +1,6 @@
 import { ID, Query } from 'appwrite';
 
-import type { INewUser } from '@/types';
+import type { INewUser, IUpdatePost } from '@/types';
 import { account, appwriteConfig, avatars, databases, storage } from './config';
 
 export async function createUserAccount(user: INewUser) {
@@ -170,9 +170,10 @@ export async function createPost(post: {
   }
 }
 
-export function getFileViewUrl(fileId: string) {
+export function getFileViewUrl(fileId: string): string {
   try {
-    return storage.getFileView(appwriteConfig.storageId, fileId);
+    const url = storage.getFileView(appwriteConfig.storageId, fileId);
+    return url.toString(); // Konversi URL object ke string
   } catch (error) {
     console.log(error);
     throw error;
@@ -259,6 +260,91 @@ export async function deleteSavedPost(savedRecordId: string) {
     if (!statusCode) throw Error;
 
     return { status: 'ok' };
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}
+
+export async function getPostById(postId: string) {
+  if (!postId) return;
+
+  try {
+    const post = await databases.getDocument(
+      appwriteConfig.databaseId,
+      appwriteConfig.postCollectionId,
+      postId,
+    );
+
+    if (!post) throw Error;
+
+    return post;
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}
+
+export async function updatePost(post: IUpdatePost) {
+  const hasFileToUpdate = post.file.length > 0;
+
+  try {
+    let image = {
+      imageUrl: post.imageUrl, // Sudah bertipe URL | string
+      imageId: post.imageId,
+    };
+
+    if (hasFileToUpdate) {
+      // Upload file baru
+      const uploadedFile = await uploadFile(post.file[0]);
+      if (!uploadedFile) throw Error('File upload failed');
+
+      // Dapatkan URL file baru
+      const fileUrl = getFileViewUrl(uploadedFile.$id);
+      if (!fileUrl) {
+        await deleteFile(uploadedFile.$id);
+        throw Error('Failed to get file URL');
+      }
+
+      // Update image object dengan URL string
+      image = {
+        ...image,
+        imageUrl: fileUrl.toString(), // ← Konversi ke string jika perlu
+        imageId: uploadedFile.$id,
+      };
+    }
+
+    // Convert tags
+    const tags = post.tags?.replace(/ /g, '').split(',') || [];
+
+    // Update post
+    const updatedPost = await databases.updateDocument(
+      appwriteConfig.databaseId,
+      appwriteConfig.postCollectionId,
+      post.postId,
+      {
+        caption: post.caption,
+        imageUrl: image.imageUrl,
+        imageId: image.imageId,
+        location: post.location,
+        tags: tags,
+      },
+    );
+
+    // Hapus file lama jika ada file baru yang berhasil diupload
+    if (hasFileToUpdate && updatedPost) {
+      await deleteFile(post.imageId);
+    }
+
+    if (!updatedPost) {
+      // Jika gagal update, hapus file baru
+      if (hasFileToUpdate) {
+        await deleteFile(image.imageId);
+      }
+      throw Error('Failed to update post');
+    }
+
+    return updatedPost;
   } catch (error) {
     console.log(error);
     throw error;

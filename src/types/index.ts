@@ -34,12 +34,11 @@ export type IUpdatePost = {
   postId: string;
   caption: string;
   imageId: string;
-  imageUrl: URL;
+  imageUrl: URL | string; // ← Ubah dari URL ke URL | string
   file: File[];
   location?: string;
   tags?: string;
 };
-
 export type IUser = {
   id: string;
   name: string;

@@ -51,12 +51,15 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
     );
   }, [currentUser?.save, post.$id]);
 
+  // Update isSaved hanya setelah user data berhasil dimuat
   useEffect(() => {
     if (isUserLoaded && currentUser) {
       setIsSaved(!!savedPostRecord);
       setIsInitialized(true);
     }
   }, [isUserLoaded, currentUser, savedPostRecord]);
+
+  // Reset initialization state saat user berubah (logout/login)
   useEffect(() => {
     if (!currentUser && isInitialized) {
       setIsInitialized(false);
@@ -64,6 +67,7 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
     }
   }, [currentUser, isInitialized]);
 
+  // Log errors untuk debugging
   useEffect(() => {
     if (saveError) {
       console.error('Save post error:', saveError);
@@ -89,21 +93,26 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
   const handleSavePost = (e: React.MouseEvent) => {
     e.stopPropagation();
 
+    // Prevent action jika data belum diinisialisasi
     if (!isInitialized) return;
 
     if (savedPostRecord) {
+      // Unsave post
       setIsSaved(false);
       deleteSavedPost(savedPostRecord.$id, {
         onError: () => {
+          // Rollback state jika error
           setIsSaved(true);
         },
       });
     } else {
+      // Save post
       setIsSaved(true);
       savePost(
         { postId: post.$id, userId: userId },
         {
           onError: () => {
+            // Rollback state jika error
             setIsSaved(false);
           },
         },
@@ -111,6 +120,7 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
     }
   };
 
+  // Show loading state untuk save button jika data belum diinisialisasi
   const showSaveLoader =
     isSavingPost || isDeletingPost || isLoadingUser || !isInitialized;
 

@@ -1,22 +1,23 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import type { FileWithPath } from 'react-dropzone';
 import { Button } from '../ui/button';
 
 type FileUploaderProps = {
-  field: any;
+  fieldChange: (files: File[]) => void;
   mediaUrl?: string;
 };
 
-const FileUploader = ({ field, mediaUrl }: FileUploaderProps) => {
-  const [fileUrl, setFileUrl] = useState<string | undefined>(mediaUrl);
+const FileUploader = ({ fieldChange, mediaUrl }: FileUploaderProps) => {
+  const [file, setFile] = useState<File[]>([]);
+  const [fileUrl, setFileUrl] = useState<string>(mediaUrl || '');
 
   const onDrop = useCallback(
-    (acceptedFiles: FileWithPath[]) => {
-      field.onChange(acceptedFiles);
+    (acceptedFiles: File[]) => {
+      setFile(acceptedFiles);
+      fieldChange(acceptedFiles);
       setFileUrl(URL.createObjectURL(acceptedFiles[0]));
     },
-    [field],
+    [fieldChange],
   );
 
   const { getRootProps, getInputProps } = useDropzone({
@@ -29,10 +30,10 @@ const FileUploader = ({ field, mediaUrl }: FileUploaderProps) => {
   return (
     <div
       {...getRootProps()}
-      {...field}
       className="flex flex-center flex-col bg-dark-3 rounded-xl cursor-pointer"
     >
       <input {...getInputProps()} className="cursor-pointer" />
+
       {fileUrl ? (
         <>
           <div className="flex flex-1 justify-center w-full p-5 lg:p-10">
@@ -46,7 +47,7 @@ const FileUploader = ({ field, mediaUrl }: FileUploaderProps) => {
             src="/assets/icons/file-upload.svg"
             width={96}
             height={77}
-            alt="file-upload"
+            alt="file upload"
           />
           <h3 className="base-medium text-light-2 mb-2 mt-6">
             Drag photo here
