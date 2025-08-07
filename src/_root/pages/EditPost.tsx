@@ -7,9 +7,9 @@ const EditPost = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { data: post, isLoading } = useGetPostById(id || '');
+  const { data: post, isPending } = useGetPostById(id || '');
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="flex-center w-full h-full">
         <AppLoader />
