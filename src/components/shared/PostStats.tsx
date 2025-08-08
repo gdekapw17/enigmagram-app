@@ -10,12 +10,12 @@ import { checkIsLiked } from '@/types/utils';
 import { AppLoader } from '@/components/shared';
 
 type PostStatsProps = {
-  post: Models.Document;
+  post?: Models.Document;
   userId: string;
 };
 
 const PostStats = ({ post, userId }: PostStatsProps) => {
-  const likesList: string[] = post.likes.map(
+  const likesList: string[] = post?.likes.map(
     (user: Models.Document) => user.$id,
   );
 
@@ -47,9 +47,9 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
     }
 
     return currentUser.save.find(
-      (record: Models.Document) => record.post?.$id === post.$id,
+      (record: Models.Document) => record.post?.$id === post?.$id,
     );
-  }, [currentUser?.save, post.$id]);
+  }, [currentUser?.save, post?.$id]);
 
   // Update isSaved hanya setelah user data berhasil dimuat
   useEffect(() => {
@@ -87,7 +87,7 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
       : [...likes, userId];
 
     setLikes(newLikes);
-    likePost({ postId: post.$id, likesArray: newLikes });
+    likePost({ postId: post?.$id || '', likesArray: newLikes });
   };
 
   const handleSavePost = (e: React.MouseEvent) => {
@@ -109,7 +109,7 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
       // Save post
       setIsSaved(true);
       savePost(
-        { postId: post.$id, userId: userId },
+        { postId: post?.$id || '', userId: userId },
         {
           onError: () => {
             // Rollback state jika error
