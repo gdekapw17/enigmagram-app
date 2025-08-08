@@ -17,7 +17,11 @@ const PostDetails = () => {
   return (
     <div className="post_details-container">
       <div className="post_details-card">
-        <img src={post?.imageUrl} alt="post" className="post_details-img" />
+        <img
+          src={post?.imageUrl}
+          alt="post"
+          className="post_details-img flex self-center"
+        />
 
         <div className="post_details-info">
           <div className="flex-between w-full">
@@ -46,7 +50,7 @@ const PostDetails = () => {
                       : 'Just now'}
                   </p>
                   -
-                  <p className="subtle-semibold lg:small-reguler">
+                  <p className="subtle-semibold lg:small-regular">
                     {post?.location}
                   </p>
                 </div>
@@ -82,15 +86,17 @@ const PostDetails = () => {
 
           <hr className="border w-full border-dark-4/80" />
 
-          <div className="small-medium lg:base-reguler flex flex-col flex-1">
-            <p>{post?.caption}</p>
-            <ul className="flex gap-1 mt-2">
-              {post?.tags.map((tag: string) => (
-                <li key={tag} className="text-light-3">
-                  #{tag}
-                </li>
-              ))}
-            </ul>
+          <div className="small-medium lg:base-regular flex flex-col flex-1 ">
+            <p className="break-all">{post?.caption}</p>
+            {post?.tags?.length > 0 && (
+              <ul className="flex flex-wrap gap-1 mt-2">
+                {post?.tags.map((tag: string) => (
+                  <li key={tag} className="text-light-3">
+                    #{tag}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="w-full">
