@@ -12,9 +12,9 @@ const PostCard = ({ post }: PostCardProps) => {
   const { user } = useUserContext();
 
   if (!post.creator) return;
-  // console.log('Full user object:', user);
-  // console.log('Full post creator:', post.creator);
-  // console.log(post);
+  console.log('Full user object:', user);
+  console.log('Full post creator:', post.creator);
+  console.log(post);
 
   return (
     <div className="post-card">
@@ -61,7 +61,7 @@ const PostCard = ({ post }: PostCardProps) => {
       </div>
       <Link to={`/posts/${post.$id}`}>
         <div className="small-medium lg:base-medium py-5">
-          <p className="break-all">{post.caption}</p>
+          <p className="break-all line-clamp-3">{post.caption}</p>
           {post?.tags?.length > 0 && (
             <ul className="flex flex-wrap gap-1 mt-2">
               {post?.tags.map((tag: string) => (
