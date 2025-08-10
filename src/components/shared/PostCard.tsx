@@ -15,6 +15,7 @@ const PostCard = ({ post }: PostCardProps) => {
   console.log('Full user object:', user);
   console.log('Full post creator:', post.creator);
   console.log(post);
+  console.log('test');
 
   return (
     <div className="post-card">
