@@ -12,10 +12,8 @@ const PostCard = ({ post }: PostCardProps) => {
   const { user } = useUserContext();
 
   if (!post.creator) return;
-  console.log('Full user object:', user);
-  console.log('Full post creator:', post.creator);
-  console.log(post);
-  console.log('test');
+  // console.log('Full user object:', user);
+  // console.log('Full post creator:', post.creator);
 
   return (
     <div className="post-card">
