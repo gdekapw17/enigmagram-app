@@ -1,9 +1,29 @@
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
+import { SearchResults, GridPostList, AppLoader } from '@/components/shared';
+import {
+  useGetPosts,
+  useSearchPosts,
+} from '@/lib/tanstack-query/queriesAndMutations';
+import useDebounce from '@/hooks/useDebounce';
 
 const Explore = () => {
   const [searchValue, setSearchValue] = useState('');
 
+  const debouncedValue = useDebounce(searchValue, 500);
+
+  const { data: posts, fetchNextPage, hasNextPage } = useGetPosts();
+  const { data: searchedPosts, isFetching: isSearchFetching } =
+    useSearchPosts(debouncedValue);
+
+  if (!posts) return <AppLoader />;
+
+  const shouldShowResults = searchValue !== '';
+  const shouldShowPosts =
+    !shouldShowResults &&
+    posts?.pages.every((item) => item.documents.length === 0);
+
+  console.log(posts);
   return (
     <div className="explore-container">
       <div className="explore-inner_container">
@@ -38,7 +58,17 @@ const Explore = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-9 w-full max-w-5xl"></div>
+      <div className="flex flex-wrap gap-9 w-full max-w-5xl">
+        {shouldShowResults ? (
+          <SearchResults />
+        ) : shouldShowPosts ? (
+          <p className="text-light-4 text-center w-full">End of Post</p>
+        ) : (
+          posts?.pages.map((item, index) => (
+            <GridPostList key={`page-${index}`} posts={item.documents} />
+          ))
+        )}
+      </div>
     </div>
   );
 };
