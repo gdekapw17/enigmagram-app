@@ -39,7 +39,7 @@ const PostCard = ({ post }: PostCardProps) => {
                 <p className="subtle-semibold lg:small-regular">
                   {formatRelativeTime(post.$createdAt)}
                 </p>
-                -
+                <p className="self-center font-bold">•</p>
                 <p className="subtle-semibold lg:small-regular">
                   {post.location}
                 </p>
