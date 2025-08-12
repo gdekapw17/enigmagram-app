@@ -125,7 +125,7 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
     isSavingPost || isDeletingPost || isLoadingUser || !isInitialized;
 
   return (
-    <div className="flex justify-between items-center z-20">
+    <div className="flex justify-between items-center z-20 gap-4">
       <div className="flex gap-2">
         <img
           src={
