@@ -18,6 +18,7 @@ import {
   updatePost,
   getInfinitePosts,
   searchPosts,
+  getSavedPosts,
 } from '../appwrite/api';
 import type { INewUser, INewPost, IUpdatePost } from '@/types';
 import { QUERY_KEYS } from './queryKeys';
@@ -97,7 +98,7 @@ export const useSavePost = () => {
   return useMutation({
     mutationFn: ({ postId, userId }: { postId: string; userId: string }) =>
       savePost(postId, userId),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       // Invalidate queries untuk update UI
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_CURRENT_USER],
@@ -108,6 +109,10 @@ export const useSavePost = () => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_POSTS],
       });
+      // 🆕 Invalidate saved posts
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_SAVED_POSTS, variables.userId],
+      });
     },
     // Optimistic update untuk responsivitas yang lebih baik
     onMutate: async ({ postId, userId }) => {
@@ -115,18 +120,25 @@ export const useSavePost = () => {
       await queryClient.cancelQueries({
         queryKey: [QUERY_KEYS.GET_CURRENT_USER],
       });
+      await queryClient.cancelQueries({
+        queryKey: [QUERY_KEYS.GET_SAVED_POSTS, userId],
+      });
 
-      // Snapshot previous value
+      // Snapshot previous values
       const previousUser = queryClient.getQueryData([
         QUERY_KEYS.GET_CURRENT_USER,
       ]);
+      const previousSavedPosts = queryClient.getQueryData([
+        QUERY_KEYS.GET_SAVED_POSTS,
+        userId,
+      ]);
 
-      // Optimistically update
+      // Optimistically update current user
       queryClient.setQueryData([QUERY_KEYS.GET_CURRENT_USER], (old: any) => {
         if (!old) return old;
 
         const newSave = {
-          $id: `temp-${Date.now()}`, // temporary ID
+          $id: `temp-${Date.now()}`,
           post: { $id: postId },
         };
 
@@ -136,7 +148,28 @@ export const useSavePost = () => {
         };
       });
 
-      return { previousUser };
+      // 🆕 Optimistically update saved posts list
+      queryClient.setQueryData(
+        [QUERY_KEYS.GET_SAVED_POSTS, userId],
+        (old: any) => {
+          if (!old) return old;
+
+          const newSavedPost = {
+            $id: `temp-${Date.now()}`,
+            $createdAt: new Date().toISOString(),
+            user: userId,
+            post: { $id: postId },
+          };
+
+          return {
+            ...old,
+            documents: [newSavedPost, ...old.documents],
+            total: old.total + 1,
+          };
+        },
+      );
+
+      return { previousUser, previousSavedPosts };
     },
     onError: (err, variables, context) => {
       // Rollback on error
@@ -144,6 +177,12 @@ export const useSavePost = () => {
         queryClient.setQueryData(
           [QUERY_KEYS.GET_CURRENT_USER],
           context.previousUser,
+        );
+      }
+      if (context?.previousSavedPosts) {
+        queryClient.setQueryData(
+          [QUERY_KEYS.GET_SAVED_POSTS, variables.userId],
+          context.previousSavedPosts,
         );
       }
     },
@@ -155,7 +194,7 @@ export const useDeleteSavedPost = () => {
 
   return useMutation({
     mutationFn: (savedRecordId: string) => deleteSavedPost(savedRecordId),
-    onSuccess: () => {
+    onSuccess: (data, savedRecordId) => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_CURRENT_USER],
       });
@@ -164,6 +203,10 @@ export const useDeleteSavedPost = () => {
       });
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_POSTS],
+      });
+      // 🆕 Invalidate all saved posts queries
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_SAVED_POSTS],
       });
     },
     // Optimistic update
@@ -176,6 +219,7 @@ export const useDeleteSavedPost = () => {
         QUERY_KEYS.GET_CURRENT_USER,
       ]);
 
+      // Update current user
       queryClient.setQueryData([QUERY_KEYS.GET_CURRENT_USER], (old: any) => {
         if (!old || !old.save) return old;
 
@@ -184,6 +228,22 @@ export const useDeleteSavedPost = () => {
           save: old.save.filter((item: any) => item.$id !== savedRecordId),
         };
       });
+
+      // 🆕 Update saved posts lists
+      queryClient.setQueriesData(
+        { queryKey: [QUERY_KEYS.GET_SAVED_POSTS] },
+        (old: any) => {
+          if (!old || !old.documents) return old;
+
+          return {
+            ...old,
+            documents: old.documents.filter(
+              (item: any) => item.$id !== savedRecordId,
+            ),
+            total: Math.max(0, old.total - 1),
+          };
+        },
+      );
 
       return { previousUser };
     },
@@ -194,6 +254,10 @@ export const useDeleteSavedPost = () => {
           context.previousUser,
         );
       }
+      // Invalidate to refetch correct data
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_SAVED_POSTS],
+      });
     },
   });
 };
@@ -253,8 +317,19 @@ export const useGetPosts = () => {
 
 export const useSearchPosts = (searchTerm: string) => {
   return useQuery({
-    queryKey: [QUERY_KEYS.SEARCH_POSTS],
+    queryKey: [QUERY_KEYS.SEARCH_POSTS, searchTerm],
     queryFn: () => searchPosts(searchTerm),
     enabled: !!searchTerm,
+  });
+};
+
+export const useGetSavedPosts = (userId?: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GET_SAVED_POSTS, userId],
+    queryFn: () => getSavedPosts(userId || ''),
+    enabled: !!userId, // Hanya jalankan query jika userId ada
+    staleTime: 1000 * 60 * 5, // 5 menit
+    gcTime: 1000 * 60 * 10, // 10 menit
+    retry: 1, // Retry sekali jika gagal
   });
 };

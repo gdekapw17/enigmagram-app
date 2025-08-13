@@ -390,3 +390,24 @@ export async function searchPosts(searchTerm: string) {
     throw error;
   }
 }
+
+export async function getSavedPosts(userId: string) {
+  try {
+    const savedPosts = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.savesCollectionId,
+      [
+        Query.equal('user', userId),
+        Query.orderDesc('$createdAt'),
+        Query.limit(50),
+      ],
+    );
+
+    if (!savedPosts) throw Error;
+
+    return savedPosts;
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}
