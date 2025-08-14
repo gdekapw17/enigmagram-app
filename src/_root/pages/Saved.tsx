@@ -36,8 +36,14 @@ const Saved = () => {
   if (!savedPosts?.documents?.length) {
     return (
       <div className="explore-container">
-        <div className="flex-between w-full max-w-5xl">
-          <h2 className="h3-bold md:h2-bold w-full">Saved Posts</h2>
+        <div className="max-w-5xl flex-start gap-3 justify-start w-full">
+          <img
+            src="/assets/icons/saved.svg"
+            width={36}
+            height={36}
+            alt="add-post-icon"
+          />
+          <h2 className="h3-bold md:h2-bold">Saved Post</h2>
         </div>
         <div className="flex-center w-full h-full">
           <p className="text-light-4">No saved posts yet</p>
@@ -48,8 +54,14 @@ const Saved = () => {
 
   return (
     <div className="explore-container">
-      <div className="flex-between w-full max-w-5xl">
-        <h2 className="h3-bold md:h2-bold w-full">Saved Posts</h2>
+      <div className="max-w-5xl flex-start gap-3 justify-start w-full">
+        <img
+          src="/assets/icons/saved.svg"
+          width={36}
+          height={36}
+          alt="add-post-icon"
+        />
+        <h2 className="h3-bold md:h2-bold">Saved Post</h2>
       </div>
 
       <div className="flex-between w-full max-w-5xl mt-16 mb-7">
