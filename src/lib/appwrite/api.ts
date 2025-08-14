@@ -411,3 +411,138 @@ export async function getSavedPosts(userId: string) {
     throw error;
   }
 }
+
+export async function getTopUsers() {
+  try {
+    // Ambil semua users dengan limit
+    const users = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.userCollectionId,
+      [
+        Query.orderDesc('$createdAt'),
+        Query.limit(50), // Ambil lebih banyak untuk sorting
+      ],
+    );
+
+    if (!users) throw Error;
+
+    // Untuk setiap user, hitung statistik mereka
+    const usersWithStats = await Promise.all(
+      users.documents.map(async (user) => {
+        try {
+          // Hitung jumlah posts user
+          const userPosts = await databases.listDocuments(
+            appwriteConfig.databaseId,
+            appwriteConfig.postCollectionId,
+            [
+              Query.equal('creator', user.$id),
+              Query.limit(1), // Hanya untuk count
+            ],
+          );
+
+          // Hitung total likes dari semua posts user
+          const allUserPosts = await databases.listDocuments(
+            appwriteConfig.databaseId,
+            appwriteConfig.postCollectionId,
+            [Query.equal('creator', user.$id), Query.limit(100)],
+          );
+
+          const totalLikes = allUserPosts.documents.reduce((total, post) => {
+            return total + (post.likes?.length || 0);
+          }, 0);
+
+          const totalPosts = userPosts.total || 0;
+
+          return {
+            ...user,
+            postsCount: totalPosts,
+            likesCount: totalLikes,
+            score: totalPosts * 2 + totalLikes, // Formula scoring
+          };
+        } catch (error) {
+          console.log(`Error calculating stats for user ${user.$id}:`, error);
+          return {
+            ...user,
+            postsCount: 0,
+            likesCount: 0,
+            score: 0,
+          };
+        }
+      }),
+    );
+
+    const topUsers = usersWithStats
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+
+    return {
+      documents: topUsers,
+      total: topUsers.length,
+    };
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}
+
+export async function searchUsers(searchTerm: string) {
+  try {
+    if (!searchTerm || searchTerm.trim().length < 2) {
+      return { documents: [], total: 0 };
+    }
+
+    const usersByName = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.userCollectionId,
+      [Query.search('name', searchTerm), Query.limit(20)],
+    );
+
+    let usersByUsername = { documents: [], total: 0 };
+    try {
+      usersByUsername = await databases.listDocuments(
+        appwriteConfig.databaseId,
+        appwriteConfig.userCollectionId,
+        [Query.search('username', searchTerm), Query.limit(20)],
+      );
+    } catch (error) {
+      console.log('Username search not available:', error);
+    }
+
+    const allUsers = [...usersByName.documents, ...usersByUsername.documents];
+    const uniqueUsers = allUsers.filter(
+      (user, index, self) =>
+        index === self.findIndex((u) => u.$id === user.$id),
+    );
+
+    return {
+      documents: uniqueUsers,
+      total: uniqueUsers.length,
+    };
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}
+
+export async function getAllUsers({ pageParam }: { pageParam?: string }) {
+  const queries: any[] = [Query.orderDesc('$createdAt'), Query.limit(20)];
+
+  if (pageParam) {
+    queries.push(Query.cursorAfter(pageParam));
+  }
+
+  try {
+    const users = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.userCollectionId,
+      queries,
+    );
+
+    if (!users) throw Error;
+
+    return users;
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}

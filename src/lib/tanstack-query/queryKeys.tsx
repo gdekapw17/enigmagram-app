@@ -4,7 +4,9 @@ export const QUERY_KEYS = {
 
   // USER KEYS
   GET_CURRENT_USER: 'getCurrentUser',
-  GET_USERS: 'getUsers',
+  GET_TOP_USERS: 'getTopUsers',
+  SEARCH_USERS: 'searchUsers',
+  GET_ALL_USERS: 'getAllUsers',
   GET_USER_BY_ID: 'getUserById',
 
   // POST KEYS

@@ -19,6 +19,9 @@ import {
   getInfinitePosts,
   searchPosts,
   getSavedPosts,
+  getTopUsers,
+  searchUsers,
+  getAllUsers,
 } from '../appwrite/api';
 import type { INewUser, INewPost, IUpdatePost } from '@/types';
 import { QUERY_KEYS } from './queryKeys';
@@ -331,5 +334,39 @@ export const useGetSavedPosts = (userId?: string) => {
     staleTime: 1000 * 60 * 5, // 5 menit
     gcTime: 1000 * 60 * 10, // 10 menit
     retry: 1, // Retry sekali jika gagal
+  });
+};
+
+export const useGetTopUsers = () => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GET_TOP_USERS],
+    queryFn: getTopUsers,
+    staleTime: 1000 * 60 * 10, // 10 menit
+    gcTime: 1000 * 60 * 30, // 30 menit
+    retry: 1,
+  });
+};
+
+export const useSearchUsers = (searchTerm: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.SEARCH_USERS, searchTerm],
+    queryFn: () => searchUsers(searchTerm),
+    enabled: !!searchTerm && searchTerm.length >= 2,
+    staleTime: 1000 * 60 * 5, // 5 menit
+    retry: 1,
+  });
+};
+
+export const useGetAllUsers = () => {
+  return useInfiniteQuery({
+    queryKey: [QUERY_KEYS.GET_ALL_USERS],
+    queryFn: getAllUsers,
+    initialPageParam: undefined,
+    getNextPageParam: (lastPage) => {
+      if (lastPage && lastPage.documents.length === 0) return null;
+      const lastId = lastPage.documents[lastPage?.documents.length - 1].$id;
+      return lastId;
+    },
+    staleTime: 1000 * 60 * 5,
   });
 };
