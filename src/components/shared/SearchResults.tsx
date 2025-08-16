@@ -19,8 +19,9 @@ const SearchResults = ({
   if (searchedPosts && searchedPosts.documents.length > 0)
     return <GridPostList posts={searchedPosts.documents} />;
 
-  if (searchedUsers && searchedUsers.documents.length > 0)
-    return <TopUserList user={searchedUsers.documents} />;
+  if (searchedUsers && searchedUsers.documents.length > 0) {
+    searchedUsers.documents.map((user) => <TopUserList user={user} />);
+  }
 
   return (
     <p className="text-light-4 mt-10 text-center w-full">No Results Found</p>

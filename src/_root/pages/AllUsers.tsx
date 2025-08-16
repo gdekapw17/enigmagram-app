@@ -6,14 +6,13 @@ import {
 import { Input } from '@/components/ui/input';
 import useDebounce from '@/hooks/useDebounce';
 import { AppLoader, SearchResults, TopUserList } from '@/components/shared';
-import type { Models } from 'appwrite';
 
 const AllUsers = () => {
   const [searchValue, setSearchValue] = useState('');
   const debouncedValue = useDebounce(searchValue, 500);
 
   const { data: topUsers } = useGetTopUsers();
-  console.log(topUsers);
+  // console.log(topUsers);
   const { data: searchedUsers, isPending: isUserFetching } =
     useSearchUsers(debouncedValue);
 
@@ -52,7 +51,7 @@ const AllUsers = () => {
           />
         ) : (
           shouldShowUsers &&
-          topUsers?.documents.map((user) => <TopUserList user={user} />)
+          topUsers?.documents.map((user) => <TopUserList user={user as any} />)
         )}
       </div>
     </div>
