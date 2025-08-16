@@ -43,15 +43,20 @@ const AllUsers = () => {
         </div>
       </div>
 
-      <div className="flex gap-9 w-full max-w-5xl mt-16 mb-7">
+      <div className="w-full max-w-5xl mt-8 mb-7 px-4 sm:px-6 lg:px-0">
         {shouldShowResults ? (
           <SearchResults
             isSearchFetching={isUserFetching}
             searchedUsers={searchedUsers || { documents: [] }}
           />
         ) : (
-          shouldShowUsers &&
-          topUsers?.documents.map((user) => <TopUserList user={user as any} />)
+          shouldShowUsers && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+              {topUsers?.documents.map((user) => (
+                <TopUserList user={user as any} key={user.$id} />
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>

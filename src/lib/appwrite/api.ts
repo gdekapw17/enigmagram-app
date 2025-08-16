@@ -491,66 +491,94 @@ export async function searchUsers(searchTerm: string) {
       return { documents: [] };
     }
 
-    // Clean and validate search term
     const cleanSearchTerm = searchTerm.trim();
     if (cleanSearchTerm.length < 2) {
       return { documents: [] };
     }
 
-    let allUsers: any[] = [];
+    console.log('Searching for:', cleanSearchTerm);
 
-    // Try searching by name first
-    try {
-      const usersByName = await databases.listDocuments(
-        appwriteConfig.databaseId,
-        appwriteConfig.userCollectionId,
-        [Query.search('name', cleanSearchTerm), Query.limit(20)],
-      );
-      allUsers = [...usersByName.documents];
-    } catch (nameError) {
-      console.log('Name search failed:', nameError);
-
-      // If name search fails, try a fallback approach using contains or equal
-      try {
-        const fallbackUsers = await databases.listDocuments(
-          appwriteConfig.databaseId,
-          appwriteConfig.userCollectionId,
-          [Query.contains('name', cleanSearchTerm), Query.limit(20)],
-        );
-        allUsers = [...fallbackUsers.documents];
-      } catch (fallbackError) {
-        console.log('Fallback search failed:', fallbackError);
-        // If all fails, return empty results
-        return { documents: [] };
-      }
-    }
-
-    // Try searching by username if the attribute exists
-    try {
-      const usersByUsername = await databases.listDocuments(
-        appwriteConfig.databaseId,
-        appwriteConfig.userCollectionId,
-        [Query.search('username', cleanSearchTerm), Query.limit(20)],
-      );
-      allUsers = [...allUsers, ...usersByUsername.documents];
-    } catch (usernameError) {
-      console.log('Username search not available or failed:', usernameError);
-      // Continue with just name results
-    }
-
-    // Remove duplicates based on user ID
-    const uniqueUsers = allUsers.filter(
-      (user, index, self) =>
-        index === self.findIndex((u) => u.$id === user.$id),
+    // Get all users
+    const allUsers = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.userCollectionId,
+      [Query.limit(100), Query.orderDesc('$createdAt')],
     );
 
+    if (!allUsers || !allUsers.documents) {
+      return { documents: [] };
+    }
+
+    // Filter users based on search term
+    const filteredUsers = allUsers.documents.filter((user: any) => {
+      const name = (user.name || '').toLowerCase();
+      const username = (user.username || '').toLowerCase();
+      const email = (user.email || '').toLowerCase();
+      const searchLower = cleanSearchTerm.toLowerCase();
+
+      return (
+        name.includes(searchLower) ||
+        username.includes(searchLower) ||
+        email.includes(searchLower)
+      );
+    });
+
+    // Add stats to each filtered user (same logic as getTopUsers)
+    const usersWithStats = await Promise.all(
+      filteredUsers.map(async (user: any) => {
+        try {
+          // Count user posts
+          const userPosts = await databases.listDocuments(
+            appwriteConfig.databaseId,
+            appwriteConfig.postCollectionId,
+            [
+              Query.equal('creator', user.$id),
+              Query.limit(1), // Just for count
+            ],
+          );
+
+          // Get all user posts to calculate likes
+          const allUserPosts = await databases.listDocuments(
+            appwriteConfig.databaseId,
+            appwriteConfig.postCollectionId,
+            [Query.equal('creator', user.$id), Query.limit(100)],
+          );
+
+          const totalLikes = allUserPosts.documents.reduce(
+            (total: number, post: any) => {
+              return total + (post.likes?.length || 0);
+            },
+            0,
+          );
+
+          const totalPosts = userPosts.total || 0;
+
+          return {
+            ...user,
+            postsCount: totalPosts,
+            likesCount: totalLikes,
+            score: totalPosts * 2 + totalLikes,
+          };
+        } catch (error) {
+          console.log(`Error calculating stats for user ${user.$id}:`, error);
+          return {
+            ...user,
+            postsCount: 0,
+            likesCount: 0,
+            score: 0,
+          };
+        }
+      }),
+    );
+
+    console.log('Users with stats:', usersWithStats);
+
     return {
-      documents: uniqueUsers,
-      total: uniqueUsers.length,
+      documents: usersWithStats.slice(0, 20), // Limit to 20 results
+      total: usersWithStats.length,
     };
   } catch (error) {
     console.log('Search users error:', error);
-    // Return empty result instead of throwing
     return { documents: [] };
   }
 }

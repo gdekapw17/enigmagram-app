@@ -20,7 +20,13 @@ const SearchResults = ({
     return <GridPostList posts={searchedPosts.documents} />;
 
   if (searchedUsers && searchedUsers.documents.length > 0) {
-    searchedUsers.documents.map((user) => <TopUserList user={user} />);
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+        {searchedUsers.documents.map((user) => (
+          <TopUserList user={user as any} key={user.$id} />
+        ))}
+      </div>
+    );
   }
 
   return (
