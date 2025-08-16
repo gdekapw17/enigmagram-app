@@ -62,7 +62,7 @@ const Explore = () => {
         {shouldShowResults ? (
           <SearchResults
             isSearchFetching={isSearchFetching}
-            searchedPosts={searchedPosts || null}
+            searchedPosts={searchedPosts || { documents: [] }}
           />
         ) : shouldShowPosts ? (
           <p className="text-light-4 text-center w-full">End of Post</p>
@@ -72,8 +72,6 @@ const Explore = () => {
           ))
         )}
       </div>
-
-      {}
     </div>
   );
 };

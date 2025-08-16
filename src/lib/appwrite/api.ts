@@ -487,28 +487,58 @@ export async function getTopUsers() {
 
 export async function searchUsers(searchTerm: string) {
   try {
-    if (!searchTerm || searchTerm.trim().length < 2) {
-      return { documents: [], total: 0 };
+    if (!searchTerm || searchTerm.trim() === '') {
+      return { documents: [] };
     }
 
-    const usersByName = await databases.listDocuments(
-      appwriteConfig.databaseId,
-      appwriteConfig.userCollectionId,
-      [Query.search('name', searchTerm), Query.limit(20)],
-    );
+    // Clean and validate search term
+    const cleanSearchTerm = searchTerm.trim();
+    if (cleanSearchTerm.length < 2) {
+      return { documents: [] };
+    }
 
-    let usersByUsername = { documents: [], total: 0 };
+    let allUsers: any[] = [];
+
+    // Try searching by name first
     try {
-      usersByUsername = await databases.listDocuments(
+      const usersByName = await databases.listDocuments(
         appwriteConfig.databaseId,
         appwriteConfig.userCollectionId,
-        [Query.search('username', searchTerm), Query.limit(20)],
+        [Query.search('name', cleanSearchTerm), Query.limit(20)],
       );
-    } catch (error) {
-      console.log('Username search not available:', error);
+      allUsers = [...usersByName.documents];
+    } catch (nameError) {
+      console.log('Name search failed:', nameError);
+
+      // If name search fails, try a fallback approach using contains or equal
+      try {
+        const fallbackUsers = await databases.listDocuments(
+          appwriteConfig.databaseId,
+          appwriteConfig.userCollectionId,
+          [Query.contains('name', cleanSearchTerm), Query.limit(20)],
+        );
+        allUsers = [...fallbackUsers.documents];
+      } catch (fallbackError) {
+        console.log('Fallback search failed:', fallbackError);
+        // If all fails, return empty results
+        return { documents: [] };
+      }
     }
 
-    const allUsers = [...usersByName.documents, ...usersByUsername.documents];
+    // Try searching by username if the attribute exists
+    try {
+      const usersByUsername = await databases.listDocuments(
+        appwriteConfig.databaseId,
+        appwriteConfig.userCollectionId,
+        [Query.search('username', cleanSearchTerm), Query.limit(20)],
+      );
+      allUsers = [...allUsers, ...usersByUsername.documents];
+    } catch (usernameError) {
+      console.log('Username search not available or failed:', usernameError);
+      // Continue with just name results
+    }
+
+    // Remove duplicates based on user ID
     const uniqueUsers = allUsers.filter(
       (user, index, self) =>
         index === self.findIndex((u) => u.$id === user.$id),
@@ -519,8 +549,9 @@ export async function searchUsers(searchTerm: string) {
       total: uniqueUsers.length,
     };
   } catch (error) {
-    console.log(error);
-    throw error;
+    console.log('Search users error:', error);
+    // Return empty result instead of throwing
+    return { documents: [] };
   }
 }
 
