@@ -5,25 +5,23 @@ import {
 } from '@/lib/tanstack-query/queriesAndMutations';
 import { Input } from '@/components/ui/input';
 import useDebounce from '@/hooks/useDebounce';
-import { AppLoader, SearchResults, GridUserList } from '@/components/shared';
+import { AppLoader, SearchResults, TopUserList } from '@/components/shared';
+import type { Models } from 'appwrite';
 
 const AllUsers = () => {
   const [searchValue, setSearchValue] = useState('');
   const debouncedValue = useDebounce(searchValue, 500);
 
   const { data: topUsers } = useGetTopUsers();
-  const { data: searchedUsers, isPending: isSearchFetching } =
+  console.log(topUsers);
+  const { data: searchedUsers, isPending: isUserFetching } =
     useSearchUsers(debouncedValue);
-
-  console.log(searchedUsers);
 
   if (!topUsers) return <AppLoader />;
 
   const shouldShowResults = searchValue !== '';
   const shouldShowUsers =
-    !shouldShowResults &&
-    searchedUsers?.documents &&
-    searchedUsers.documents.length > 0;
+    !shouldShowResults && topUsers?.documents && topUsers.documents.length > 0;
 
   return (
     <div className="explore-container">
@@ -46,16 +44,15 @@ const AllUsers = () => {
         </div>
       </div>
 
-      <div className="flex gap-9 w-full max-w-5xl">
+      <div className="flex gap-9 w-full max-w-5xl mt-16 mb-7">
         {shouldShowResults ? (
           <SearchResults
-            isSearchFetching={isSearchFetching}
+            isSearchFetching={isUserFetching}
             searchedUsers={searchedUsers || { documents: [] }}
           />
-        ) : shouldShowUsers ? (
-          <p className="text-light-4 text-center w-full">End of Post</p>
         ) : (
-          <GridUserList />
+          shouldShowUsers &&
+          topUsers?.documents.map((user) => <TopUserList user={user} />)
         )}
       </div>
     </div>

@@ -1,7 +1,7 @@
 import type { Models } from 'appwrite';
 import AppLoader from './AppLoader';
 import GridPostList from './GridPostList';
-import GridUserList from './GridUserList';
+import TopUserList from './TopUserList';
 
 type SearchResultsProps = {
   isSearchFetching: boolean;
@@ -20,7 +20,7 @@ const SearchResults = ({
     return <GridPostList posts={searchedPosts.documents} />;
 
   if (searchedUsers && searchedUsers.documents.length > 0)
-    return <div>yes</div>;
+    return <TopUserList user={searchedUsers.documents} />;
 
   return (
     <p className="text-light-4 mt-10 text-center w-full">No Results Found</p>

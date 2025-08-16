@@ -9,6 +9,13 @@ const Home = () => {
     isError: isPostError,
   } = useGetRecentPosts();
 
+  if (isPostError)
+    return (
+      <p className="text-light-4 mt-10 text-center w-full">
+        Something is wrong
+      </p>
+    );
+
   return (
     <div className="flex flex-1">
       <div className="home-container">
