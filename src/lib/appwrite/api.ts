@@ -351,11 +351,12 @@ export async function updatePost(post: IUpdatePost) {
   }
 }
 
-export async function getInfinitePosts({ pageParam }: { pageParam?: number }) {
+export async function getInfinitePosts({ pageParam }: { pageParam?: string }) {
   const queries: any[] = [Query.orderDesc('$updatedAt'), Query.limit(10)];
 
   if (pageParam) {
-    queries.push(Query.cursorAfter(pageParam.toString()));
+    // pageParam adalah document ID, bukan number
+    queries.push(Query.cursorAfter(pageParam)); // Hapus .toString()
   }
 
   try {
@@ -369,7 +370,7 @@ export async function getInfinitePosts({ pageParam }: { pageParam?: number }) {
 
     return posts;
   } catch (error) {
-    console.log(error);
+    console.log('getInfinitePosts error:', error);
     throw error;
   }
 }

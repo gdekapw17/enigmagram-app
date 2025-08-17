@@ -315,14 +315,20 @@ export const useGetPosts = () => {
   return useInfiniteQuery({
     queryKey: [QUERY_KEYS.GET_INFINITE_POSTS],
     queryFn: getInfinitePosts,
-    initialPageParam: undefined,
+    // ✅ PENTING: initialPageParam harus undefined (string)
+    initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => {
-      if (lastPage && lastPage.documents.length === 0) return null;
+      // ✅ Check apakah ada documents
+      if (!lastPage || lastPage.documents.length === 0) {
+        return undefined;
+      }
 
-      const lastId = lastPage.documents[lastPage?.documents.length - 1].id;
+      // ✅ Ambil document ID dari post terakhir
+      const lastId = lastPage.documents[lastPage.documents.length - 1].$id;
 
-      return lastId;
+      return lastId; // Return document ID sebagai string
     },
+    staleTime: 1000 * 60 * 5,
   });
 };
 

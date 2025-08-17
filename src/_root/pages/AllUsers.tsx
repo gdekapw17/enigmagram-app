@@ -44,7 +44,7 @@ const AllUsers = () => {
       </div>
 
       <div className="w-full max-w-5xl mt-16 mb-7 px-4 sm:px-6 lg:px-0">
-        <h3 className="body-bold md:h3-bold mb-7">Popular User</h3>
+        <h3 className="body-bold md:h3-bold mb-7">Top Creators</h3>
         {shouldShowResults ? (
           <SearchResults
             isSearchFetching={isUserFetching}

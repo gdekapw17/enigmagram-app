@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { SearchResults, GridPostList, AppLoader } from '@/components/shared';
 import {
@@ -6,10 +6,11 @@ import {
   useSearchPosts,
 } from '@/lib/tanstack-query/queriesAndMutations';
 import useDebounce from '@/hooks/useDebounce';
+import { useInView } from 'react-intersection-observer';
 
 const Explore = () => {
+  const { ref, inView } = useInView();
   const [searchValue, setSearchValue] = useState('');
-
   const debouncedValue = useDebounce(searchValue, 500);
   // console.log(debouncedValue);
 
@@ -17,12 +18,18 @@ const Explore = () => {
   const { data: searchedPosts, isFetching: isSearchFetching } =
     useSearchPosts(debouncedValue);
 
+  useEffect(() => {
+    if (inView && !searchValue) fetchNextPage();
+  }, [inView, searchValue]);
+
   if (!posts) return <AppLoader />;
 
   const shouldShowResults = searchValue !== '';
   const shouldShowPosts =
     !shouldShowResults &&
     posts?.pages.every((item) => item.documents.length === 0);
+
+  const allPosts = posts.pages.flatMap((page) => page.documents);
 
   return (
     <div className="explore-container">
@@ -67,11 +74,15 @@ const Explore = () => {
         ) : shouldShowPosts ? (
           <p className="text-light-4 text-center w-full">End of Post</p>
         ) : (
-          posts?.pages.map((item, index) => (
-            <GridPostList key={`page-${index}`} posts={item.documents} />
-          ))
+          <GridPostList posts={allPosts} />
         )}
       </div>
+
+      {hasNextPage && !searchValue && (
+        <div ref={ref} className="mt-10">
+          <AppLoader />
+        </div>
+      )}
     </div>
   );
 };
