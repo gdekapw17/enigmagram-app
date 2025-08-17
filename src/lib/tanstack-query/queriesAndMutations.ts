@@ -22,6 +22,11 @@ import {
   getTopUsers,
   searchUsers,
   getAllUsers,
+  followUser,
+  unfollowUser,
+  getUserFollowers,
+  getUserFollowing,
+  checkIsFollowing,
 } from '../appwrite/api';
 import type { INewUser, INewPost, IUpdatePost } from '@/types';
 import { QUERY_KEYS } from './queryKeys';
@@ -368,5 +373,91 @@ export const useGetAllUsers = () => {
       return lastId;
     },
     staleTime: 1000 * 60 * 5,
+  });
+};
+
+export const useFollowUser = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      followerId,
+      followingId,
+    }: {
+      followerId: string;
+      followingId: string;
+    }) => followUser(followerId, followingId),
+    onSuccess: (data, variables) => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_USER_FOLLOWERS, variables.followingId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_USER_FOLLOWING, variables.followerId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [
+          QUERY_KEYS.CHECK_IS_FOLLOWING,
+          variables.followerId,
+          variables.followingId,
+        ],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_TOP_USERS],
+      });
+    },
+  });
+};
+
+export const useUnfollowUser = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (followRecordId: string) => unfollowUser(followRecordId),
+    onSuccess: () => {
+      // Invalidate all follow-related queries
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_USER_FOLLOWERS],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_USER_FOLLOWING],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.CHECK_IS_FOLLOWING],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_TOP_USERS],
+      });
+    },
+  });
+};
+
+export const useGetUserFollowers = (userId: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GET_USER_FOLLOWERS, userId],
+    queryFn: () => getUserFollowers(userId),
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5, // 5 menit
+  });
+};
+
+export const useGetUserFollowing = (userId: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GET_USER_FOLLOWING, userId],
+    queryFn: () => getUserFollowing(userId),
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5, // 5 menit
+  });
+};
+
+export const useCheckIsFollowing = (
+  followerId: string,
+  followingId: string,
+) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.CHECK_IS_FOLLOWING, followerId, followingId],
+    queryFn: () => checkIsFollowing(followerId, followingId),
+    enabled: !!followerId && !!followingId && followerId !== followingId,
+    staleTime: 1000 * 60 * 2, // 2 menit
   });
 };

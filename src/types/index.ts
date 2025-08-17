@@ -34,7 +34,7 @@ export type IUpdatePost = {
   postId: string;
   caption: string;
   imageId: string;
-  imageUrl: URL | string; // ← Ubah dari URL ke URL | string
+  imageUrl: URL | string;
   file: File[];
   location?: string;
   tags?: string;
@@ -58,3 +58,15 @@ export type INewUser = {
   username: string;
   password: string;
 };
+
+export interface IFollow {
+  $id: string;
+  follower: string;
+  following: string;
+  $createdAt: string;
+}
+
+export interface IFollowUser {
+  followerId: string;
+  followingId: string;
+}

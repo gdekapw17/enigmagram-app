@@ -420,7 +420,7 @@ export async function getTopUsers() {
       appwriteConfig.userCollectionId,
       [
         Query.orderDesc('$createdAt'),
-        Query.limit(50), // Ambil lebih banyak untuk sorting
+        Query.limit(10), // Ambil lebih banyak untuk sorting
       ],
     );
 
@@ -451,13 +451,25 @@ export async function getTopUsers() {
             return total + (post.likes?.length || 0);
           }, 0);
 
+          // ✅ Hitung followers
+          const followers = await databases.listDocuments(
+            appwriteConfig.databaseId,
+            appwriteConfig.followsCollectionId,
+            [
+              Query.equal('following', user.$id),
+              Query.limit(1), // Hanya untuk count
+            ],
+          );
+
           const totalPosts = userPosts.total || 0;
+          const totalFollowers = followers.total || 0;
 
           return {
             ...user,
             postsCount: totalPosts,
             likesCount: totalLikes,
-            score: totalPosts * 2 + totalLikes, // Formula scoring
+            followersCount: totalFollowers, // ✅ Tambahkan follower count
+            score: totalPosts * 2 + totalLikes + totalFollowers, // ✅ Update formula scoring
           };
         } catch (error) {
           console.log(`Error calculating stats for user ${user.$id}:`, error);
@@ -465,6 +477,7 @@ export async function getTopUsers() {
             ...user,
             postsCount: 0,
             likesCount: 0,
+            followersCount: 0,
             score: 0,
           };
         }
@@ -603,5 +616,107 @@ export async function getAllUsers({ pageParam }: { pageParam?: string }) {
   } catch (error) {
     console.log(error);
     throw error;
+  }
+}
+
+export async function followUser(followerId: string, followingId: string) {
+  try {
+    const newFollow = await databases.createDocument(
+      appwriteConfig.databaseId,
+      appwriteConfig.followsCollectionId,
+      ID.unique(),
+      {
+        follower: followerId,
+        following: followingId,
+      },
+    );
+
+    if (!newFollow) throw Error;
+
+    return newFollow;
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}
+
+export async function unfollowUser(followRecordId: string) {
+  try {
+    const statusCode = await databases.deleteDocument(
+      appwriteConfig.databaseId,
+      appwriteConfig.followsCollectionId,
+      followRecordId,
+    );
+
+    if (!statusCode) throw Error;
+
+    return { status: 'ok' };
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}
+
+export async function getUserFollowers(userId: string) {
+  try {
+    const followers = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.followsCollectionId,
+      [
+        Query.equal('following', userId),
+        Query.orderDesc('$createdAt'),
+        Query.limit(100),
+      ],
+    );
+
+    if (!followers) throw Error;
+
+    return followers;
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}
+
+export async function getUserFollowing(userId: string) {
+  try {
+    const following = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.followsCollectionId,
+      [
+        Query.equal('follower', userId),
+        Query.orderDesc('$createdAt'),
+        Query.limit(100),
+      ],
+    );
+
+    if (!following) throw Error;
+
+    return following;
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}
+
+export async function checkIsFollowing(
+  followerId: string,
+  followingId: string,
+) {
+  try {
+    const followRecord = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.followsCollectionId,
+      [
+        Query.equal('follower', followerId),
+        Query.equal('following', followingId),
+        Query.limit(1),
+      ],
+    );
+
+    return followRecord.documents.length > 0 ? followRecord.documents[0] : null;
+  } catch (error) {
+    console.log(error);
+    return null;
   }
 }
