@@ -27,6 +27,9 @@ import {
   getUserFollowers,
   getUserFollowing,
   checkIsFollowing,
+  searchPostsByHashtag,
+  getTrendingHashtags,
+  advancedSearchPosts,
 } from '../appwrite/api';
 import type { INewUser, INewPost, IUpdatePost } from '@/types';
 import { QUERY_KEYS } from './queryKeys';
@@ -327,7 +330,46 @@ export const useSearchPosts = (searchTerm: string) => {
   return useQuery({
     queryKey: [QUERY_KEYS.SEARCH_POSTS, searchTerm],
     queryFn: () => searchPosts(searchTerm),
-    enabled: !!searchTerm,
+    enabled: !!searchTerm && searchTerm.trim().length >= 1, // Allow single character search
+    staleTime: 1000 * 60 * 2, // 2 minutes
+  });
+};
+
+export const useSearchPostsByHashtag = (hashtag: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.SEARCH_POSTS_BY_HASHTAG, hashtag],
+    queryFn: () => searchPostsByHashtag(hashtag),
+    enabled: !!hashtag && hashtag.trim().length >= 1,
+    staleTime: 1000 * 60 * 2,
+  });
+};
+
+export const useGetTrendingHashtags = (limit?: number) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GET_TRENDING_HASHTAGS, limit],
+    queryFn: () => getTrendingHashtags(limit),
+    staleTime: 1000 * 60 * 10, // 10 minutes
+    gcTime: 1000 * 60 * 30, // 30 minutes
+  });
+};
+
+export const useAdvancedSearchPosts = (searchOptions: {
+  query?: string;
+  hashtags?: string[];
+  location?: string;
+  creator?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}) => {
+  const hasSearchCriteria = Object.values(searchOptions).some((value) =>
+    Array.isArray(value) ? value.length > 0 : !!value?.toString().trim(),
+  );
+
+  return useQuery({
+    queryKey: [QUERY_KEYS.ADVANCED_SEARCH_POSTS, searchOptions],
+    queryFn: () => advancedSearchPosts(searchOptions),
+    enabled: hasSearchCriteria,
+    staleTime: 1000 * 60 * 2,
   });
 };
 

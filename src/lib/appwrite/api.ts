@@ -376,18 +376,240 @@ export async function getInfinitePosts({ pageParam }: { pageParam?: number }) {
 
 export async function searchPosts(searchTerm: string) {
   try {
+    if (!searchTerm || searchTerm.trim() === '') {
+      return { documents: [] };
+    }
+
+    const cleanSearchTerm = searchTerm.trim().toLowerCase();
+
+    // If search term starts with #, search hashtags specifically
+    if (cleanSearchTerm.startsWith('#')) {
+      const hashtag = cleanSearchTerm.substring(1); // Remove # symbol
+      return await searchPostsByHashtag(hashtag);
+    }
+
+    // For regular search, get all posts and filter them
+    const allPosts = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.postCollectionId,
+      [
+        Query.orderDesc('$createdAt'),
+        Query.limit(100), // Get more posts to filter through
+      ],
+    );
+
+    if (!allPosts || !allPosts.documents) {
+      return { documents: [] };
+    }
+
+    // Filter posts based on search criteria
+    const filteredPosts = allPosts.documents.filter((post: any) => {
+      const caption = (post.caption || '').toLowerCase();
+      const location = (post.location || '').toLowerCase();
+      const tags = Array.isArray(post.tags)
+        ? post.tags.join(' ').toLowerCase()
+        : '';
+      const creatorName = (post.creator?.name || '').toLowerCase();
+      const creatorUsername = (post.creator?.username || '').toLowerCase();
+
+      return (
+        caption.includes(cleanSearchTerm) ||
+        location.includes(cleanSearchTerm) ||
+        tags.includes(cleanSearchTerm) ||
+        creatorName.includes(cleanSearchTerm) ||
+        creatorUsername.includes(cleanSearchTerm)
+      );
+    });
+
+    return {
+      documents: filteredPosts.slice(0, 20), // Limit results
+      total: filteredPosts.length,
+    };
+  } catch (error) {
+    console.log('Search posts error:', error);
+    return { documents: [] };
+  }
+}
+
+export async function searchPostsByHashtag(hashtag: string) {
+  try {
+    if (!hashtag || hashtag.trim() === '') {
+      return { documents: [] };
+    }
+
+    const cleanHashtag = hashtag.trim().toLowerCase();
+
+    // Get all posts to filter by hashtag
+    const allPosts = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.postCollectionId,
+      [Query.orderDesc('$createdAt'), Query.limit(100)],
+    );
+
+    if (!allPosts || !allPosts.documents) {
+      return { documents: [] };
+    }
+
+    // Filter posts that contain the hashtag
+    const filteredPosts = allPosts.documents.filter((post: any) => {
+      const tags = Array.isArray(post.tags) ? post.tags : [];
+      return tags.some((tag: string) =>
+        tag.toLowerCase().includes(cleanHashtag),
+      );
+    });
+
+    return {
+      documents: filteredPosts.slice(0, 20),
+      total: filteredPosts.length,
+    };
+  } catch (error) {
+    console.log('Search hashtag error:', error);
+    return { documents: [] };
+  }
+}
+
+export async function getTrendingHashtags(limit: number = 10) {
+  try {
+    // Get recent posts
+    const recentPosts = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.postCollectionId,
+      [
+        Query.orderDesc('$createdAt'),
+        Query.limit(100), // Get recent posts to analyze hashtags
+      ],
+    );
+
+    if (!recentPosts || !recentPosts.documents) {
+      return [];
+    }
+
+    // Count hashtag frequency
+    const hashtagCount: { [key: string]: number } = {};
+
+    recentPosts.documents.forEach((post: any) => {
+      if (Array.isArray(post.tags)) {
+        post.tags.forEach((tag: string) => {
+          const cleanTag = tag.trim().toLowerCase();
+          if (cleanTag) {
+            hashtagCount[cleanTag] = (hashtagCount[cleanTag] || 0) + 1;
+          }
+        });
+      }
+    });
+
+    // Convert to array and sort by frequency
+    const trendingHashtags = Object.entries(hashtagCount)
+      .map(([hashtag, count]) => ({ hashtag, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
+
+    return trendingHashtags;
+  } catch (error) {
+    console.log('Get trending hashtags error:', error);
+    return [];
+  }
+}
+
+export async function advancedSearchPosts(searchOptions: {
+  query?: string;
+  hashtags?: string[];
+  location?: string;
+  creator?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  try {
+    const { query, hashtags, location, creator, dateFrom, dateTo } =
+      searchOptions;
+
+    // Build Appwrite queries
+    const queries: any[] = [Query.orderDesc('$createdAt'), Query.limit(50)];
+
+    // Add date filters if provided
+    if (dateFrom) {
+      queries.push(Query.greaterThanEqual('$createdAt', dateFrom));
+    }
+    if (dateTo) {
+      queries.push(Query.lessThanEqual('$createdAt', dateTo));
+    }
+
+    // Get posts
     const posts = await databases.listDocuments(
       appwriteConfig.databaseId,
       appwriteConfig.postCollectionId,
-      [Query.search('caption', searchTerm)],
+      queries,
     );
 
-    if (!posts) throw Error;
+    if (!posts || !posts.documents) {
+      return { documents: [] };
+    }
 
-    return posts;
+    // Filter posts based on search criteria
+    let filteredPosts = posts.documents;
+
+    // Filter by text query
+    if (query && query.trim()) {
+      const searchTerm = query.trim().toLowerCase();
+      filteredPosts = filteredPosts.filter((post: any) => {
+        const caption = (post.caption || '').toLowerCase();
+        const postLocation = (post.location || '').toLowerCase();
+        const tags = Array.isArray(post.tags)
+          ? post.tags.join(' ').toLowerCase()
+          : '';
+
+        return (
+          caption.includes(searchTerm) ||
+          postLocation.includes(searchTerm) ||
+          tags.includes(searchTerm)
+        );
+      });
+    }
+
+    // Filter by hashtags
+    if (hashtags && hashtags.length > 0) {
+      const cleanHashtags = hashtags.map((tag) =>
+        tag.toLowerCase().replace('#', ''),
+      );
+      filteredPosts = filteredPosts.filter((post: any) => {
+        const postTags = Array.isArray(post.tags)
+          ? post.tags.map((t: string) => t.toLowerCase())
+          : [];
+        return cleanHashtags.some((hashtag) =>
+          postTags.some((postTag: string) => postTag.includes(hashtag)),
+        );
+      });
+    }
+
+    // Filter by location
+    if (location && location.trim()) {
+      const searchLocation = location.trim().toLowerCase();
+      filteredPosts = filteredPosts.filter((post: any) => {
+        const postLocation = (post.location || '').toLowerCase();
+        return postLocation.includes(searchLocation);
+      });
+    }
+
+    // Filter by creator
+    if (creator && creator.trim()) {
+      const searchCreator = creator.trim().toLowerCase();
+      filteredPosts = filteredPosts.filter((post: any) => {
+        const creatorName = (post.creator?.name || '').toLowerCase();
+        const creatorUsername = (post.creator?.username || '').toLowerCase();
+        return (
+          creatorName.includes(searchCreator) ||
+          creatorUsername.includes(searchCreator)
+        );
+      });
+    }
+
+    return {
+      documents: filteredPosts.slice(0, 20),
+      total: filteredPosts.length,
+    };
   } catch (error) {
-    console.log(error);
-    throw error;
+    console.log('Advanced search error:', error);
+    return { documents: [] };
   }
 }
 

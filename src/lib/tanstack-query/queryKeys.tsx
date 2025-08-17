@@ -23,4 +23,7 @@ export const QUERY_KEYS = {
 
   //  SEARCH KEYS
   SEARCH_POSTS: 'getSearchPosts',
+  SEARCH_POSTS_BY_HASHTAG: 'searchPostsByHashtag',
+  GET_TRENDING_HASHTAGS: 'getTrendingHashtags',
+  ADVANCED_SEARCH_POSTS: 'advancedSearchPosts',
 } as const;
