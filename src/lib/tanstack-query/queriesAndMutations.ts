@@ -30,6 +30,16 @@ import {
   searchPostsByHashtag,
   getTrendingHashtags,
   advancedSearchPosts,
+  getUserById,
+  getUserPosts,
+  getInfiniteUserPosts,
+  getUserLikedPosts,
+  getInfiniteUserLikedPosts,
+  updateUserProfile,
+  getUserProfileStats,
+  checkUsernameAvailability,
+  getUserActivitySummary,
+  getUserByUsername,
 } from '../appwrite/api';
 import type { INewUser, INewPost, IUpdatePost } from '@/types';
 import { QUERY_KEYS } from './queryKeys';
@@ -508,4 +518,158 @@ export const useCheckIsFollowing = (
     enabled: !!followerId && !!followingId && followerId !== followingId,
     staleTime: 1000 * 60 * 2, // 2 menit
   });
+};
+
+export const useGetUserById = (userId: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GET_USER_BY_ID, userId],
+    queryFn: () => getUserById(userId),
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 10, // 10 minutes
+  });
+};
+
+export const useGetUserByUsername = (username: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GET_USER_BY_USERNAME, username],
+    queryFn: () => getUserByUsername(username),
+    enabled: !!username,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+};
+
+export const useGetUserPosts = (userId: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GET_USER_POSTS, userId],
+    queryFn: () => getUserPosts(userId),
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+};
+
+export const useGetInfiniteUserPosts = (userId: string) => {
+  return useInfiniteQuery({
+    queryKey: [QUERY_KEYS.GET_INFINITE_USER_POSTS, userId],
+    queryFn: ({ pageParam }) => getInfiniteUserPosts({ userId, pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || lastPage.documents.length === 0) {
+        return undefined;
+      }
+      const lastId = lastPage.documents[lastPage.documents.length - 1].$id;
+      return lastId;
+    },
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
+  });
+};
+
+export const useGetUserLikedPosts = (userId: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GET_USER_LIKED_POSTS, userId],
+    queryFn: () => getUserLikedPosts(userId),
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+};
+
+export const useGetInfiniteUserLikedPosts = (userId: string) => {
+  return useInfiniteQuery({
+    queryKey: [QUERY_KEYS.GET_INFINITE_USER_LIKED_POSTS, userId],
+    queryFn: ({ pageParam }) =>
+      getInfiniteUserLikedPosts({ userId, pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || lastPage.documents.length === 0) {
+        return undefined;
+      }
+      const lastId = lastPage.documents[lastPage.documents.length - 1].$id;
+      return lastId;
+    },
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
+  });
+};
+
+export const useUpdateUserProfile = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (user: {
+      userId: string;
+      name: string;
+      username: string;
+      email: string;
+      bio?: string;
+      imageUrl?: string;
+      imageId?: string;
+      file?: File[];
+    }) => updateUserProfile(user),
+    onSuccess: (data, variables) => {
+      // Invalidate user-related queries
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_USER_BY_ID, variables.userId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_USER_BY_USERNAME, variables.username],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_CURRENT_USER],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_USER_PROFILE_STATS, variables.userId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_TOP_USERS],
+      });
+    },
+    onError: (error) => {
+      console.error('Update profile error:', error);
+    },
+  });
+};
+
+export const useGetUserProfileStats = (userId: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GET_USER_PROFILE_STATS, userId],
+    queryFn: () => getUserProfileStats(userId),
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 2, // 2 minutes
+    gcTime: 1000 * 60 * 5, // 5 minutes
+  });
+};
+
+export const useCheckUsernameAvailability = () => {
+  return useMutation({
+    mutationFn: ({
+      username,
+      currentUserId,
+    }: {
+      username: string;
+      currentUserId?: string;
+    }) => checkUsernameAvailability(username, currentUserId),
+  });
+};
+
+export const useGetUserActivitySummary = (userId: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GET_USER_ACTIVITY_SUMMARY, userId],
+    queryFn: () => getUserActivitySummary(userId),
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 15, // 15 minutes
+  });
+};
+
+export const usePrefetchUserProfile = () => {
+  const queryClient = useQueryClient();
+
+  return (userId: string) => {
+    queryClient.prefetchQuery({
+      queryKey: [QUERY_KEYS.GET_USER_BY_ID, userId],
+      queryFn: () => getUserById(userId),
+      staleTime: 1000 * 60 * 5,
+    });
+  };
 };

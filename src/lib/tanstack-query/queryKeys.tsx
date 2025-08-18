@@ -8,9 +8,17 @@ export const QUERY_KEYS = {
   SEARCH_USERS: 'searchUsers',
   GET_ALL_USERS: 'getAllUsers',
   GET_USER_BY_ID: 'getUserById',
+  GET_USER_BY_USERNAME: 'getUserByUsername',
   GET_USER_FOLLOWERS: 'getUserFollowers',
   GET_USER_FOLLOWING: 'getUserFollowing',
   CHECK_IS_FOLLOWING: 'checkIsFollowing',
+  GET_INFINITE_USER_POSTS: 'getInfiniteUserPosts',
+  GET_USER_LIKED_POSTS: 'getUserLikedPosts',
+  GET_INFINITE_USER_LIKED_POSTS: 'getInfiniteUserLikedPosts',
+  GET_USER_PROFILE_STATS: 'getUserProfileStats',
+  GET_USER_ACTIVITY_SUMMARY: 'getUserActivitySummary',
+  CHECK_USERNAME_AVAILABILITY: 'checkUsernameAvailability',
+  UPDATE_USER_PROFILE: 'updateUserProfile',
 
   // POST KEYS
   GET_POSTS: 'getPosts',

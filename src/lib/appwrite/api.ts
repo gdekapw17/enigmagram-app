@@ -943,3 +943,347 @@ export async function checkIsFollowing(
     return null;
   }
 }
+
+export async function getUserById(userId: string) {
+  try {
+    const user = await databases.getDocument(
+      appwriteConfig.databaseId,
+      appwriteConfig.userCollectionId,
+      userId,
+    );
+
+    if (!user) throw Error;
+
+    // Get user stats
+    const [followers, following, posts] = await Promise.all([
+      getUserFollowers(userId),
+      getUserFollowing(userId),
+      getUserPosts(userId),
+    ]);
+
+    return {
+      ...user,
+      followersCount: followers.total || 0,
+      followingCount: following.total || 0,
+      postsCount: posts.total || 0,
+    };
+  } catch (error) {
+    console.log('Get user by ID error:', error);
+    throw error;
+  }
+}
+
+export async function getUserPosts(userId: string) {
+  try {
+    const posts = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.postCollectionId,
+      [
+        Query.equal('creator', userId),
+        Query.orderDesc('$createdAt'),
+        Query.limit(50),
+      ],
+    );
+
+    if (!posts) throw Error;
+
+    return posts;
+  } catch (error) {
+    console.log('Get user posts error:', error);
+    throw error;
+  }
+}
+
+export async function getInfiniteUserPosts({
+  userId,
+  pageParam,
+}: {
+  userId: string;
+  pageParam?: string;
+}) {
+  const queries: any[] = [
+    Query.equal('creator', userId),
+    Query.orderDesc('$createdAt'),
+    Query.limit(9), // 3x3 grid
+  ];
+
+  if (pageParam) {
+    queries.push(Query.cursorAfter(pageParam));
+  }
+
+  try {
+    const posts = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.postCollectionId,
+      queries,
+    );
+
+    if (!posts) throw Error;
+
+    return posts;
+  } catch (error) {
+    console.log('Get infinite user posts error:', error);
+    throw error;
+  }
+}
+
+export async function getUserLikedPosts(userId: string) {
+  try {
+    // Get all posts
+    const allPosts = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.postCollectionId,
+      [
+        Query.orderDesc('$createdAt'),
+        Query.limit(100), // Adjust limit as needed
+      ],
+    );
+
+    if (!allPosts) throw Error;
+
+    // Filter posts that user has liked
+    const likedPosts = allPosts.documents.filter(
+      (post: any) => post.likes && post.likes.includes(userId),
+    );
+
+    return {
+      documents: likedPosts,
+      total: likedPosts.length,
+    };
+  } catch (error) {
+    console.log('Get user liked posts error:', error);
+    throw error;
+  }
+}
+
+export async function getInfiniteUserLikedPosts({
+  userId,
+  pageParam,
+}: {
+  userId: string;
+  pageParam?: string;
+}) {
+  try {
+    const queries: any[] = [Query.orderDesc('$createdAt'), Query.limit(20)];
+
+    if (pageParam) {
+      queries.push(Query.cursorAfter(pageParam));
+    }
+
+    const allPosts = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.postCollectionId,
+      queries,
+    );
+
+    if (!allPosts) throw Error;
+
+    // Filter posts that user has liked
+    const likedPosts = allPosts.documents.filter(
+      (post: any) => post.likes && post.likes.includes(userId),
+    );
+
+    return {
+      documents: likedPosts,
+      total: likedPosts.length,
+    };
+  } catch (error) {
+    console.log('Get infinite user liked posts error:', error);
+    throw error;
+  }
+}
+
+export async function updateUserProfile(user: {
+  userId: string;
+  name: string;
+  username: string;
+  email: string;
+  bio?: string;
+  imageUrl?: string;
+  imageId?: string;
+  file?: File[];
+}) {
+  try {
+    let image = {
+      imageUrl: user.imageUrl || '',
+      imageId: user.imageId || '',
+    };
+
+    // If there's a new profile picture
+    if (user.file && user.file.length > 0) {
+      // Upload new profile picture
+      const uploadedFile = await uploadFile(user.file[0]);
+      if (!uploadedFile) throw Error('File upload failed');
+
+      // Get file URL
+      const fileUrl = getFileViewUrl(uploadedFile.$id);
+      if (!fileUrl) {
+        await deleteFile(uploadedFile.$id);
+        throw Error('Failed to get file URL');
+      }
+
+      image = {
+        imageUrl: fileUrl,
+        imageId: uploadedFile.$id,
+      };
+    }
+
+    // Check if username is available (if changed)
+    const existingUser = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.userCollectionId,
+      [
+        Query.equal('username', user.username),
+        Query.notEqual('$id', user.userId),
+      ],
+    );
+
+    if (existingUser.documents.length > 0) {
+      throw new Error('Username already taken');
+    }
+
+    // Update user document
+    const updatedUser = await databases.updateDocument(
+      appwriteConfig.databaseId,
+      appwriteConfig.userCollectionId,
+      user.userId,
+      {
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        bio: user.bio || '',
+        imageUrl: image.imageUrl,
+        imageId: image.imageId,
+      },
+    );
+
+    // Delete old profile picture if new one was uploaded
+    if (user.file && user.file.length > 0 && user.imageId) {
+      await deleteFile(user.imageId);
+    }
+
+    if (!updatedUser) throw Error('Failed to update user');
+
+    return updatedUser;
+  } catch (error) {
+    console.log('Update user profile error:', error);
+    throw error;
+  }
+}
+
+export async function getUserProfileStats(userId: string) {
+  try {
+    const [followers, following, posts, likedPosts] = await Promise.all([
+      getUserFollowers(userId),
+      getUserFollowing(userId),
+      getUserPosts(userId),
+      getUserLikedPosts(userId),
+    ]);
+
+    return {
+      followersCount: followers.total || 0,
+      followingCount: following.total || 0,
+      postsCount: posts.total || 0,
+      likedPostsCount: likedPosts.total || 0,
+    };
+  } catch (error) {
+    console.log('Get user profile stats error:', error);
+    throw error;
+  }
+}
+
+export async function checkUsernameAvailability(
+  username: string,
+  currentUserId?: string,
+) {
+  try {
+    const queries = [Query.equal('username', username)];
+
+    // Exclude current user if updating profile
+    if (currentUserId) {
+      queries.push(Query.notEqual('$id', currentUserId));
+    }
+
+    const existingUsers = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.userCollectionId,
+      queries,
+    );
+
+    return {
+      available: existingUsers.documents.length === 0,
+      message:
+        existingUsers.documents.length > 0
+          ? 'Username already taken'
+          : 'Username available',
+    };
+  } catch (error) {
+    console.log('Check username availability error:', error);
+    return {
+      available: false,
+      message: 'Error checking username',
+    };
+  }
+}
+
+export async function getUserActivitySummary(userId: string) {
+  try {
+    const [posts, likedPosts, savedPosts, followers, following] =
+      await Promise.all([
+        getUserPosts(userId),
+        getUserLikedPosts(userId),
+        getSavedPosts(userId),
+        getUserFollowers(userId),
+        getUserFollowing(userId),
+      ]);
+
+    // Calculate total likes received on user's posts
+    const totalLikesReceived = posts.documents.reduce(
+      (total: number, post: any) => {
+        return total + (post.likes?.length || 0);
+      },
+      0,
+    );
+
+    return {
+      postsCount: posts.total || 0,
+      likedPostsCount: likedPosts.total || 0,
+      savedPostsCount: savedPosts.total || 0,
+      followersCount: followers.total || 0,
+      followingCount: following.total || 0,
+      totalLikesReceived,
+      joinedDate:
+        posts.documents[posts.documents.length - 1]?.$createdAt || null,
+    };
+  } catch (error) {
+    console.log('Get user activity summary error:', error);
+    throw error;
+  }
+}
+
+export async function getUserByUsername(username: string) {
+  try {
+    const users = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.userCollectionId,
+      [Query.equal('username', username)],
+    );
+
+    if (!users.documents.length) {
+      throw new Error('User not found');
+    }
+
+    const user = users.documents[0];
+
+    // Get user stats
+    const stats = await getUserProfileStats(user.$id);
+
+    return {
+      ...user,
+      ...stats,
+    };
+  } catch (error) {
+    console.log('Get user by username error:', error);
+    throw error;
+  }
+}
