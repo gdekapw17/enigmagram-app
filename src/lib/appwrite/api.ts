@@ -945,6 +945,8 @@ export async function checkIsFollowing(
 }
 
 export async function getUserById(userId: string) {
+  if (!userId) return;
+
   try {
     const user = await databases.getDocument(
       appwriteConfig.databaseId,
@@ -954,26 +956,16 @@ export async function getUserById(userId: string) {
 
     if (!user) throw Error;
 
-    // Get user stats
-    const [followers, following, posts] = await Promise.all([
-      getUserFollowers(userId),
-      getUserFollowing(userId),
-      getUserPosts(userId),
-    ]);
-
-    return {
-      ...user,
-      followersCount: followers.total || 0,
-      followingCount: following.total || 0,
-      postsCount: posts.total || 0,
-    };
+    return user;
   } catch (error) {
-    console.log('Get user by ID error:', error);
+    console.log(error);
     throw error;
   }
 }
 
 export async function getUserPosts(userId: string) {
+  if (!userId) return;
+
   try {
     const posts = await databases.listDocuments(
       appwriteConfig.databaseId,
@@ -989,62 +981,28 @@ export async function getUserPosts(userId: string) {
 
     return posts;
   } catch (error) {
-    console.log('Get user posts error:', error);
-    throw error;
-  }
-}
-
-export async function getInfiniteUserPosts({
-  userId,
-  pageParam,
-}: {
-  userId: string;
-  pageParam?: string;
-}) {
-  const queries: any[] = [
-    Query.equal('creator', userId),
-    Query.orderDesc('$createdAt'),
-    Query.limit(9), // 3x3 grid
-  ];
-
-  if (pageParam) {
-    queries.push(Query.cursorAfter(pageParam));
-  }
-
-  try {
-    const posts = await databases.listDocuments(
-      appwriteConfig.databaseId,
-      appwriteConfig.postCollectionId,
-      queries,
-    );
-
-    if (!posts) throw Error;
-
-    return posts;
-  } catch (error) {
-    console.log('Get infinite user posts error:', error);
+    console.log(error);
     throw error;
   }
 }
 
 export async function getUserLikedPosts(userId: string) {
+  if (!userId) return;
+
   try {
-    // Get all posts
+    // Get all posts first
     const allPosts = await databases.listDocuments(
       appwriteConfig.databaseId,
       appwriteConfig.postCollectionId,
-      [
-        Query.orderDesc('$createdAt'),
-        Query.limit(100), // Adjust limit as needed
-      ],
+      [Query.orderDesc('$createdAt'), Query.limit(100)],
     );
 
     if (!allPosts) throw Error;
 
-    // Filter posts that user has liked
-    const likedPosts = allPosts.documents.filter(
-      (post: any) => post.likes && post.likes.includes(userId),
-    );
+    // Filter posts that are liked by the user
+    const likedPosts = allPosts.documents.filter((post: any) => {
+      return post.likes && post.likes.includes(userId);
+    });
 
     return {
       documents: likedPosts,
@@ -1052,66 +1010,28 @@ export async function getUserLikedPosts(userId: string) {
     };
   } catch (error) {
     console.log('Get user liked posts error:', error);
-    throw error;
-  }
-}
-
-export async function getInfiniteUserLikedPosts({
-  userId,
-  pageParam,
-}: {
-  userId: string;
-  pageParam?: string;
-}) {
-  try {
-    const queries: any[] = [Query.orderDesc('$createdAt'), Query.limit(20)];
-
-    if (pageParam) {
-      queries.push(Query.cursorAfter(pageParam));
-    }
-
-    const allPosts = await databases.listDocuments(
-      appwriteConfig.databaseId,
-      appwriteConfig.postCollectionId,
-      queries,
-    );
-
-    if (!allPosts) throw Error;
-
-    // Filter posts that user has liked
-    const likedPosts = allPosts.documents.filter(
-      (post: any) => post.likes && post.likes.includes(userId),
-    );
-
-    return {
-      documents: likedPosts,
-      total: likedPosts.length,
-    };
-  } catch (error) {
-    console.log('Get infinite user liked posts error:', error);
-    throw error;
+    return { documents: [] };
   }
 }
 
 export async function updateUserProfile(user: {
   userId: string;
   name: string;
-  username: string;
-  email: string;
   bio?: string;
-  imageUrl?: string;
   imageId?: string;
-  file?: File[];
+  imageUrl?: string;
+  file: File[];
 }) {
+  const hasFileToUpdate = user.file && user.file.length > 0;
+
   try {
     let image = {
       imageUrl: user.imageUrl || '',
       imageId: user.imageId || '',
     };
 
-    // If there's a new profile picture
-    if (user.file && user.file.length > 0) {
-      // Upload new profile picture
+    if (hasFileToUpdate) {
+      // Upload new file
       const uploadedFile = await uploadFile(user.file[0]);
       if (!uploadedFile) throw Error('File upload failed');
 
@@ -1122,24 +1042,11 @@ export async function updateUserProfile(user: {
         throw Error('Failed to get file URL');
       }
 
+      // Update image object
       image = {
-        imageUrl: fileUrl,
+        imageUrl: fileUrl.toString(),
         imageId: uploadedFile.$id,
       };
-    }
-
-    // Check if username is available (if changed)
-    const existingUser = await databases.listDocuments(
-      appwriteConfig.databaseId,
-      appwriteConfig.userCollectionId,
-      [
-        Query.equal('username', user.username),
-        Query.notEqual('$id', user.userId),
-      ],
-    );
-
-    if (existingUser.documents.length > 0) {
-      throw new Error('Username already taken');
     }
 
     // Update user document
@@ -1149,141 +1056,93 @@ export async function updateUserProfile(user: {
       user.userId,
       {
         name: user.name,
-        username: user.username,
-        email: user.email,
         bio: user.bio || '',
         imageUrl: image.imageUrl,
         imageId: image.imageId,
       },
     );
 
-    // Delete old profile picture if new one was uploaded
-    if (user.file && user.file.length > 0 && user.imageId) {
+    // Delete old file if new file was uploaded successfully
+    if (hasFileToUpdate && updatedUser && user.imageId) {
       await deleteFile(user.imageId);
     }
 
-    if (!updatedUser) throw Error('Failed to update user');
+    if (!updatedUser) {
+      // If update failed, delete new file
+      if (hasFileToUpdate) {
+        await deleteFile(image.imageId);
+      }
+      throw Error('Failed to update user');
+    }
 
     return updatedUser;
   } catch (error) {
-    console.log('Update user profile error:', error);
+    console.log(error);
     throw error;
   }
 }
 
-export async function getUserProfileStats(userId: string) {
+export async function getUserStats(userId: string) {
+  if (!userId) return null;
+
   try {
-    const [followers, following, posts, likedPosts] = await Promise.all([
-      getUserFollowers(userId),
-      getUserFollowing(userId),
-      getUserPosts(userId),
-      getUserLikedPosts(userId),
-    ]);
-
-    return {
-      followersCount: followers.total || 0,
-      followingCount: following.total || 0,
-      postsCount: posts.total || 0,
-      likedPostsCount: likedPosts.total || 0,
-    };
-  } catch (error) {
-    console.log('Get user profile stats error:', error);
-    throw error;
-  }
-}
-
-export async function checkUsernameAvailability(
-  username: string,
-  currentUserId?: string,
-) {
-  try {
-    const queries = [Query.equal('username', username)];
-
-    // Exclude current user if updating profile
-    if (currentUserId) {
-      queries.push(Query.notEqual('$id', currentUserId));
-    }
-
-    const existingUsers = await databases.listDocuments(
+    // Get user posts count
+    const userPosts = await databases.listDocuments(
       appwriteConfig.databaseId,
-      appwriteConfig.userCollectionId,
-      queries,
+      appwriteConfig.postCollectionId,
+      [
+        Query.equal('creator', userId),
+        Query.limit(1), // Just for count
+      ],
     );
 
-    return {
-      available: existingUsers.documents.length === 0,
-      message:
-        existingUsers.documents.length > 0
-          ? 'Username already taken'
-          : 'Username available',
-    };
-  } catch (error) {
-    console.log('Check username availability error:', error);
-    return {
-      available: false,
-      message: 'Error checking username',
-    };
-  }
-}
+    // Get followers count
+    const followers = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.followsCollectionId,
+      [
+        Query.equal('following', userId),
+        Query.limit(1), // Just for count
+      ],
+    );
 
-export async function getUserActivitySummary(userId: string) {
-  try {
-    const [posts, likedPosts, savedPosts, followers, following] =
-      await Promise.all([
-        getUserPosts(userId),
-        getUserLikedPosts(userId),
-        getSavedPosts(userId),
-        getUserFollowers(userId),
-        getUserFollowing(userId),
-      ]);
+    // Get following count
+    const following = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.followsCollectionId,
+      [
+        Query.equal('follower', userId),
+        Query.limit(1), // Just for count
+      ],
+    );
 
-    // Calculate total likes received on user's posts
-    const totalLikesReceived = posts.documents.reduce(
-      (total: number, post: any) => {
+    // Calculate total likes received on all posts
+    const allUserPosts = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.postCollectionId,
+      [Query.equal('creator', userId), Query.limit(100)],
+    );
+
+    const totalLikesReceived = allUserPosts.documents.reduce(
+      (total, post: any) => {
         return total + (post.likes?.length || 0);
       },
       0,
     );
 
     return {
-      postsCount: posts.total || 0,
-      likedPostsCount: likedPosts.total || 0,
-      savedPostsCount: savedPosts.total || 0,
+      postsCount: userPosts.total || 0,
       followersCount: followers.total || 0,
       followingCount: following.total || 0,
-      totalLikesReceived,
-      joinedDate:
-        posts.documents[posts.documents.length - 1]?.$createdAt || null,
+      likesReceived: totalLikesReceived,
     };
   } catch (error) {
-    console.log('Get user activity summary error:', error);
-    throw error;
-  }
-}
-
-export async function getUserByUsername(username: string) {
-  try {
-    const users = await databases.listDocuments(
-      appwriteConfig.databaseId,
-      appwriteConfig.userCollectionId,
-      [Query.equal('username', username)],
-    );
-
-    if (!users.documents.length) {
-      throw new Error('User not found');
-    }
-
-    const user = users.documents[0];
-
-    // Get user stats
-    const stats = await getUserProfileStats(user.$id);
-
+    console.log('Get user stats error:', error);
     return {
-      ...user,
-      ...stats,
+      postsCount: 0,
+      followersCount: 0,
+      followingCount: 0,
+      likesReceived: 0,
     };
-  } catch (error) {
-    console.log('Get user by username error:', error);
-    throw error;
   }
 }

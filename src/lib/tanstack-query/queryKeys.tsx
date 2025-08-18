@@ -19,6 +19,7 @@ export const QUERY_KEYS = {
   GET_USER_ACTIVITY_SUMMARY: 'getUserActivitySummary',
   CHECK_USERNAME_AVAILABILITY: 'checkUsernameAvailability',
   UPDATE_USER_PROFILE: 'updateUserProfile',
+  GET_USER_STATS: 'getUserStats',
 
   // POST KEYS
   GET_POSTS: 'getPosts',
