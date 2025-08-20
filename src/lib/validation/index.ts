@@ -29,3 +29,15 @@ export const PostValidation = z.object({
     .optional(),
   tags: z.string().optional(),
 });
+
+export const ProfileValidation = z.object({
+  name: z
+    .string()
+    .min(2, { message: 'Name must be at least 2 characters.' })
+    .max(50, { message: 'Name must be less than 50 characters.' }),
+  bio: z
+    .string()
+    .max(500, { message: 'Bio must be less than 500 characters.' })
+    .optional(),
+  file: z.custom<File[]>(),
+});

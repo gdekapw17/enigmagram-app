@@ -558,20 +558,78 @@ export const useUpdateUserProfile = () => {
       file: File[];
     }) => updateUserProfile(user),
     onSuccess: (data, variables) => {
-      // Invalidate relevant queries
+      // ✅ Invalidate semua queries yang berkaitan dengan user profile
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_USER_BY_ID, variables.userId],
       });
+
+      // ✅ Invalidate current user jika yang di-update adalah current user
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_CURRENT_USER],
       });
+
+      // ✅ Invalidate user stats
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_USER_STATS, variables.userId],
       });
+
+      // ✅ Invalidate top users (jika ada perubahan name/image akan terlihat)
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_TOP_USERS],
+      });
+
+      // ✅ Invalidate all users list
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_ALL_USERS],
+      });
+
+      // ✅ Invalidate posts yang dibuat oleh user ini (untuk update creator info)
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_USER_POSTS, variables.userId],
+      });
+
+      // ✅ Invalidate recent posts (jika user ini ada di recent posts)
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
+      });
+
+      // ✅ Invalidate infinite posts
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_INFINITE_POSTS],
+      });
+
+      // ✅ Invalidate followers/following lists (untuk update user info di lists)
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_USER_FOLLOWERS],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_USER_FOLLOWING],
+      });
+
+      // ✅ BONUS: Update cache secara optimistic untuk response yang lebih cepat
+      // Update user data di cache langsung tanpa tunggu refetch
+      queryClient.setQueryData(
+        [QUERY_KEYS.GET_USER_BY_ID, variables.userId],
+        data,
+      );
+
+      // Update current user cache jika yang di-update adalah current user
+      queryClient.setQueryData(
+        [QUERY_KEYS.GET_CURRENT_USER],
+        (oldData: any) => {
+          if (oldData && oldData.$id === variables.userId) {
+            return { ...oldData, ...data };
+          }
+          return oldData;
+        },
+      );
+    },
+    onError: (error) => {
+      console.error('Error updating profile:', error);
     },
   });
 };
-
 export const useGetUserStats = (userId: string) => {
   return useQuery({
     queryKey: [QUERY_KEYS.GET_USER_STATS, userId],
