@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link, Routes, Route } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useUserContext } from '@/context/AuthContext';
 import {
@@ -28,7 +28,6 @@ const StatBlock = ({ value, label }: StatBlockProps) => (
 
 const Profile = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { user: currentUser } = useUserContext();
   const [activeTab, setActiveTab] = useState('posts');
 
@@ -44,6 +43,9 @@ const Profile = () => {
   const { data: following, isLoading: isFollowingLoading } =
     useGetUserFollowing(id || '');
   const { data: followStatus } = useCheckIsFollowing(currentUser.id, id || '');
+
+  console.log('Followers data:', followers);
+  console.log('Following data:', following);
 
   // Mutations
   const { mutate: followUser, isPending: isFollowing } = useFollowUser();
@@ -99,7 +101,7 @@ const Profile = () => {
       case 'followers':
         if (isFollowersLoading) return <AppLoader />;
         return (
-          <div className="user-grid">
+          <div className="w-full">
             {followers?.documents?.length ? (
               followers.documents.map((follower: any) => (
                 <TopUserList key={follower.$id} user={follower.follower} />
@@ -115,7 +117,7 @@ const Profile = () => {
       case 'following':
         if (isFollowingLoading) return <AppLoader />;
         return (
-          <div className="user-grid">
+          <div className="w-full user-grid">
             {following?.documents?.length ? (
               following.documents.map((follow: any) => (
                 <TopUserList key={follow.$id} user={follow.following} />
@@ -155,13 +157,17 @@ const Profile = () => {
             </div>
 
             {/* Stats */}
-            <div className="flex gap-8 mt-10 items-center justify-center xl:justify-start flex-wrap z-20">
+            <div className="flex gap-8 mt-10 items-center justify-center xl:justify-start flex-wrap z-20 cursor-pointer">
               <StatBlock
                 value={userPosts?.documents?.length || 0}
                 label="Posts"
               />
-              <StatBlock value={followers?.total || 0} label="Followers" />
-              <StatBlock value={following?.total || 0} label="Following" />
+              <div onClick={() => setActiveTab('followers')}>
+                <StatBlock value={followers?.total || 0} label="Followers" />
+              </div>
+              <div onClick={() => setActiveTab('following')}>
+                <StatBlock value={following?.total || 0} label="Following" />
+              </div>
             </div>
 
             {/* Bio */}
@@ -205,8 +211,11 @@ const Profile = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex max-w-5xl w-full">
-        <div className="profile-tab" onClick={() => setActiveTab('posts')}>
+      <div className="flex max-w-5xl w-full cursor-pointer">
+        <div
+          className={`${activeTab === 'posts' ? 'bg-primary-500' : 'bg-dark-2'} profile-tab  rounded-l-lg`}
+          onClick={() => setActiveTab('posts')}
+        >
           <img
             src="/assets/icons/posts.svg"
             alt="posts"
@@ -216,7 +225,10 @@ const Profile = () => {
           />
           Posts
         </div>
-        <div className="profile-tab" onClick={() => setActiveTab('liked')}>
+        <div
+          className={`${activeTab === 'liked' ? 'bg-primary-500' : 'bg-dark-2'} profile-tab rounded-r-lg`}
+          onClick={() => setActiveTab('liked')}
+        >
           <img
             src="/assets/icons/like.svg"
             alt="liked"
@@ -225,26 +237,6 @@ const Profile = () => {
             className={`${activeTab === 'liked' && 'invert-white'}`}
           />
           Liked
-        </div>
-        <div className="profile-tab" onClick={() => setActiveTab('followers')}>
-          <img
-            src="/assets/icons/people.svg"
-            alt="followers"
-            width={20}
-            height={20}
-            className={`${activeTab === 'followers' && 'invert-white'}`}
-          />
-          Followers
-        </div>
-        <div className="profile-tab" onClick={() => setActiveTab('following')}>
-          <img
-            src="/assets/icons/people.svg"
-            alt="following"
-            width={20}
-            height={20}
-            className={`${activeTab === 'following' && 'invert-white'}`}
-          />
-          Following
         </div>
       </div>
 

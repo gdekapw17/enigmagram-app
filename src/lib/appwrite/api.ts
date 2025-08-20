@@ -894,9 +894,40 @@ export async function getUserFollowers(userId: string) {
 
     if (!followers) throw Error;
 
-    return followers;
+    // Fetch complete user data for each follower
+    const followersWithUserData = await Promise.all(
+      followers.documents.map(async (followRecord: any) => {
+        try {
+          // Fetch follower user data using the follower ID
+          const followerUser = await databases.getDocument(
+            appwriteConfig.databaseId,
+            appwriteConfig.userCollectionId,
+            followRecord.follower, // This is the user ID string
+          );
+
+          return {
+            ...followRecord,
+            follower: followerUser, // Now this is complete user object
+          };
+        } catch (error) {
+          console.log(
+            `Error fetching follower user ${followRecord.follower}:`,
+            error,
+          );
+          return {
+            ...followRecord,
+            follower: null, // Set to null if fetch failed
+          };
+        }
+      }),
+    );
+
+    return {
+      ...followers,
+      documents: followersWithUserData,
+    };
   } catch (error) {
-    console.log(error);
+    console.log('getUserFollowers error:', error);
     throw error;
   }
 }
@@ -915,9 +946,40 @@ export async function getUserFollowing(userId: string) {
 
     if (!following) throw Error;
 
-    return following;
+    // Fetch complete user data for each following
+    const followingWithUserData = await Promise.all(
+      following.documents.map(async (followRecord: any) => {
+        try {
+          // Fetch following user data using the following ID
+          const followingUser = await databases.getDocument(
+            appwriteConfig.databaseId,
+            appwriteConfig.userCollectionId,
+            followRecord.following, // This is the user ID string
+          );
+
+          return {
+            ...followRecord,
+            following: followingUser, // Now this is complete user object
+          };
+        } catch (error) {
+          console.log(
+            `Error fetching following user ${followRecord.following}:`,
+            error,
+          );
+          return {
+            ...followRecord,
+            following: null, // Set to null if fetch failed
+          };
+        }
+      }),
+    );
+
+    return {
+      ...following,
+      documents: followingWithUserData,
+    };
   } catch (error) {
-    console.log(error);
+    console.log('getUserFollowing error:', error);
     throw error;
   }
 }
