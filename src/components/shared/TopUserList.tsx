@@ -6,6 +6,7 @@ import {
   useGetCurrentUser,
 } from '@/lib/tanstack-query/queriesAndMutations';
 import { useState } from 'react';
+import AppLoader from './AppLoader';
 
 const TopUserList = ({ user }: { user: any }) => {
   const { data: currentUser } = useGetCurrentUser();
@@ -23,8 +24,10 @@ const TopUserList = ({ user }: { user: any }) => {
   const isLoading = isFollowLoading || isUnfollowLoading || isCheckingFollow;
   const isCurrentUser = currentUser?.$id === user.$id;
 
+  if (isLoading) return <AppLoader />;
+
   const handleFollowClick = async (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent navigation
+    e.preventDefault();
     e.stopPropagation();
 
     if (!currentUser || isCurrentUser || isLoading) return;
