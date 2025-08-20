@@ -38,6 +38,7 @@ import {
 } from '../appwrite/api';
 import type { INewUser, INewPost, IUpdatePost } from '@/types';
 import { QUERY_KEYS } from './queryKeys';
+import { useEffect } from 'react';
 
 export const useCreateUserAccount = () => {
   return useMutation({
@@ -285,13 +286,33 @@ export const useDeleteSavedPost = () => {
 };
 
 export const useGetCurrentUser = () => {
-  return useQuery({
+  const query = useQuery({
     queryKey: [QUERY_KEYS.GET_CURRENT_USER],
     queryFn: getCurrentUser,
-    staleTime: 1000 * 60 * 5, // 5 menit
-    gcTime: 1000 * 60 * 30, // 30 menit
-    retry: 1, // Retry sekali jika gagal
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 30, // valid di v5
+    retry: (failureCount, error: any) => {
+      if (error?.code === 401 || error?.type === 'general_unauthorized_scope') {
+        return false;
+      }
+      return failureCount < 1;
+    },
   });
+
+  // Handle error dengan useEffect
+  useEffect(() => {
+    if (query.error) {
+      console.log('getCurrentUser error:', query.error);
+      if (
+        query.error?.code === 401 ||
+        query.error?.type === 'general_unauthorized_scope'
+      ) {
+        localStorage.removeItem('cookieFallback');
+      }
+    }
+  }, [query.error]);
+
+  return query;
 };
 
 export const useGetPostById = (postId?: string) => {

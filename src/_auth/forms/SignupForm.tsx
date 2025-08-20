@@ -2,9 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-
 import { signUpValidation } from '@/lib/validation';
-import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -21,9 +19,10 @@ import {
   useSignInAccount,
 } from '@/lib/tanstack-query/queriesAndMutations';
 import { useUserContext } from '@/context/AuthContext';
+import { useState } from 'react';
 
 const SignupForm = () => {
-  const { toast } = useToast();
+  const [errorMessage, setErrorMessage] = useState('');
   const { checkAuthUser } = useUserContext();
   const navigate = useNavigate();
 
@@ -47,50 +46,48 @@ const SignupForm = () => {
   // Handler untuk submit form
   async function onSubmit(values: z.infer<typeof signUpValidation>) {
     try {
-      // 1. Buat akun otentikasi dan simpan ke database
+      setErrorMessage('');
       const newUser = await createUserAccount(values);
 
       if (!newUser) {
-        toast({ title: 'Sign up failed. Please try again.' });
+        setErrorMessage('Sign up failed. Please check your credentials.');
         return;
       }
 
-      // 2. Buat sesi login untuk pengguna baru
       const session = await signInAccount({
         email: values.email,
         password: values.password,
       });
 
       if (!session) {
-        toast({ title: 'Sign in failed after registration. Please log in.' });
+        setErrorMessage('Sign in failed after registration. Please log in.');
         navigate('/sign-in');
+        form.resetField('password');
         return;
       }
 
-      // 3. Perbarui state global untuk menandakan pengguna sudah login
       const isLoggedIn = await checkAuthUser();
 
       if (isLoggedIn) {
         form.reset();
-        // Navigasi akan ditangani oleh AuthLayout secara otomatis
       } else {
-        toast({ title: 'Sign in failed. Please try again.' });
+        setErrorMessage('Sign in failed. Please try again.');
+        form.resetField('password');
       }
     } catch (error) {
       console.error(error);
-      toast({ title: 'An error occurred. Please try again.' });
+      setErrorMessage('An unexpected error occurred. Please try again.');
+      form.resetField('password');
     }
   }
 
   return (
     <Form {...form}>
-      <div className="flex-center flex-col sm:w-420 p-10">
-        <img src="/assets/images/logo.png" alt="logo" />
-
+      <div className="flex-center flex-col sm:w-420 p-10 lg:p-0">
         <h2 className="h3-bold md:h2-bold pt-5 sm:pt-12">
           Create a new account
         </h2>
-        <p className="text-light-3 small-medium md:base-regular mt-2">
+        <p className="text-light-3 small-medium md:base-regular mt-2 text-center">
           To use Enigmagram, please enter your details
         </p>
 
@@ -108,7 +105,7 @@ const SignupForm = () => {
                 <FormControl>
                   <Input type="text" className="shad-input" {...field} />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-red text-sm font-medium" />
               </FormItem>
             )}
           />
@@ -121,7 +118,7 @@ const SignupForm = () => {
                 <FormControl>
                   <Input type="text" className="shad-input" {...field} />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-red text-sm font-medium" />
               </FormItem>
             )}
           />
@@ -134,7 +131,7 @@ const SignupForm = () => {
                 <FormControl>
                   <Input type="email" className="shad-input" {...field} />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-red text-sm font-medium" />
               </FormItem>
             )}
           />
@@ -147,19 +144,24 @@ const SignupForm = () => {
                 <FormControl>
                   <Input type="password" className="shad-input" {...field} />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-red text-sm font-medium" />
               </FormItem>
             )}
           />
 
-          <Button type="submit" className="shad-button_primary">
-            {isCreatingAccount || isSigningIn ? (
-              <div className="flex-center gap-2">
-                <AppLoader /> Loading...
-              </div>
-            ) : (
-              'Sign Up'
-            )}
+          {errorMessage && (
+            <p className="text-red text-sm font-medium">{errorMessage}</p>
+          )}
+
+          <Button
+            type="submit"
+            className="shad-button_primary whitespace-nowrap cursor-pointer"
+            disabled={isSigningIn || isCreatingAccount}
+          >
+            <div className="flex flex-center gap-2">
+              {isCreatingAccount && <AppLoader />}
+              Sign Up
+            </div>
           </Button>
 
           <p className="text-small-regular text-light-2 text-center mt-2">

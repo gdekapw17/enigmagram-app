@@ -110,5 +110,5 @@ export default {
   		},
   	}
   },
-  plugins: [tailwindcssAnimate, require("tailwindcss-animate"), require('@tailwindcss/line-clamp'),],
+  plugins: [tailwindcssAnimate, require("tailwindcss-animate")],
 };

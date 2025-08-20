@@ -3,7 +3,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { signInValidation } from '@/lib/validation';
-import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -17,11 +16,12 @@ import { Input } from '@/components/ui/input';
 import { AppLoader } from '@/components/shared';
 import { useSignInAccount } from '@/lib/tanstack-query/queriesAndMutations';
 import { useUserContext } from '@/context/AuthContext';
+import { useState } from 'react';
 
 const SigninForm = () => {
-  const { toast } = useToast();
   const { checkAuthUser } = useUserContext();
   const navigate = useNavigate();
+  const [errorMessage, setErrorMessage] = useState('');
 
   const { mutateAsync: signInAccount, isPending: isSigningIn } =
     useSignInAccount();
@@ -36,10 +36,12 @@ const SigninForm = () => {
 
   async function onSubmit(values: z.infer<typeof signInValidation>) {
     try {
+      setErrorMessage(''); // reset error
       const session = await signInAccount(values);
 
       if (!session) {
-        toast({ title: 'Sign in failed. Please check your credentials.' });
+        setErrorMessage('Sign in failed. Please check your credentials.');
+        form.resetField('password');
         return;
       }
 
@@ -49,18 +51,19 @@ const SigninForm = () => {
         form.reset();
         navigate('/');
       } else {
-        toast({ title: 'Sign in failed. Please try again.' });
+        setErrorMessage('Sign in failed. Please try again.');
+        form.resetField('password');
       }
     } catch (error) {
       console.log(error);
-      toast({ title: 'Sign in failed. Please try again.' });
+      setErrorMessage('An unexpected error occurred. Please try again.');
+      form.resetField('password');
     }
   }
 
   return (
     <Form {...form}>
-      <div className="flex-center flex-col sm:w-420 p-10">
-        <img src="/assets/images/logo.png" alt="logo" />
+      <div className="flex-center flex-col sm:w-420 p-10 lg:p-0">
         <h2 className="pt-5 sm:pt-12 h3-bold md:h2-bold">
           Log in to your account
         </h2>
@@ -81,7 +84,7 @@ const SigninForm = () => {
                 <FormControl>
                   <Input type="email" className="shad-input" {...field} />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-red text-sm font-medium" />
               </FormItem>
             )}
           />
@@ -95,18 +98,24 @@ const SigninForm = () => {
                 <FormControl>
                   <Input type="password" className="shad-input" {...field} />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-red text-sm font-medium" />
               </FormItem>
             )}
           />
-          <Button type="submit" className="shad-button_primary">
-            {isSigningIn ? (
-              <div className="flex-center gap-2">
-                <AppLoader /> Loading...
-              </div>
-            ) : (
-              'Sign In'
-            )}
+
+          {errorMessage && (
+            <p className="text-red text-sm font-medium">{errorMessage}</p>
+          )}
+
+          <Button
+            type="submit"
+            className="shad-button_primary whitespace-nowrap cursor-pointer"
+            disabled={isSigningIn}
+          >
+            <div className="flex flex-center gap-2">
+              {isSigningIn && <AppLoader />}
+              Sign In
+            </div>
           </Button>
 
           <p className="text-small-regular text-light-2 text-center mt-2">

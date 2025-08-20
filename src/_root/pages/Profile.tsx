@@ -44,8 +44,9 @@ const Profile = () => {
     useGetUserFollowing(id || '');
   const { data: followStatus } = useCheckIsFollowing(currentUser.id, id || '');
 
-  console.log('Followers data:', followers);
-  console.log('Following data:', following);
+  // console.log('Followers data:', followers);
+  // console.log('Following data:', following);
+  console.log(likedPosts);
 
   // Mutations
   const { mutate: followUser, isPending: isFollowing } = useFollowUser();
@@ -101,7 +102,9 @@ const Profile = () => {
       case 'followers':
         if (isFollowersLoading) return <AppLoader />;
         return (
-          <div className="w-full">
+          <div
+            className={followers?.documents?.length ? 'user-grid' : 'w-full'}
+          >
             {followers?.documents?.length ? (
               followers.documents.map((follower: any) => (
                 <TopUserList key={follower.$id} user={follower.follower} />
@@ -117,7 +120,9 @@ const Profile = () => {
       case 'following':
         if (isFollowingLoading) return <AppLoader />;
         return (
-          <div className="w-full user-grid">
+          <div
+            className={following?.documents?.length ? 'user-grid' : 'w-full'}
+          >
             {following?.documents?.length ? (
               following.documents.map((follow: any) => (
                 <TopUserList key={follow.$id} user={follow.following} />

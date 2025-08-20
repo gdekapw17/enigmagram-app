@@ -68,22 +68,36 @@ export async function signInAccount(user: { email: string; password: string }) {
 
 export async function getCurrentUser() {
   try {
-    const currentAcount = await account.get();
+    const currentAccount = await account.get();
 
-    if (!currentAcount) throw Error;
+    if (!currentAccount) {
+      console.log('No current account found');
+      return null;
+    }
 
     const currentUser = await databases.listDocuments(
       appwriteConfig.databaseId,
       appwriteConfig.userCollectionId,
-      [Query.equal('accountId', currentAcount.$id)],
+      [Query.equal('accountId', currentAccount.$id)],
     );
 
-    if (!currentUser) throw Error;
+    if (!currentUser || currentUser.documents.length === 0) {
+      console.log('No user document found for account');
+      return null;
+    }
 
     return currentUser.documents[0];
-  } catch (error) {
-    console.log(error);
-    return null;
+  } catch (error: any) {
+    console.log('getCurrentUser error:', error);
+
+    // Handle specific Appwrite errors
+    if (error?.code === 401 || error?.type === 'general_unauthorized_scope') {
+      console.log('User not authenticated');
+      return null;
+    }
+
+    // Re-throw other errors
+    throw error;
   }
 }
 
