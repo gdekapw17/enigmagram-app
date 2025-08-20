@@ -10,6 +10,8 @@ const PostDetails = () => {
   const { data: post, isPending } = useGetPostById(id || '');
   const { user } = useUserContext();
 
+  console.log(post?.tags);
+
   const handleDeletePost = () => {};
 
   if (isPending) return <AppLoader />;
@@ -36,7 +38,7 @@ const PostDetails = () => {
                   '/assets/icons/profile-placeholder.svg'
                 }
                 alt="creator-image"
-                className="rounded-full w-8 lg:w-12 h-8 lg:h-12"
+                className="rounded-full w-8 lg:w-12 h-8 lg:h-12 object-cover"
               />
 
               <div className="flex flex-col">
@@ -88,11 +90,11 @@ const PostDetails = () => {
 
           <div className="small-medium lg:base-regular flex flex-col flex-1 ">
             <p className="break-all">{post?.caption}</p>
-            {post?.tags?.length > 0 && (
+            {post?.tags?.length > 1 && (
               <ul className="flex flex-wrap gap-1 mt-2">
                 {post?.tags.map((tag: string) => (
                   <li key={tag} className="text-light-3">
-                    #{tag}
+                    {post?.tags?.length ? `#${tag}` : ''}
                   </li>
                 ))}
               </ul>
