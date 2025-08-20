@@ -115,6 +115,7 @@ export const useSavePost = () => {
     mutationFn: ({ postId, userId }: { postId: string; userId: string }) =>
       savePost(postId, userId),
     onSuccess: (data, variables) => {
+      console.log(data);
       // Invalidate queries untuk update UI
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_CURRENT_USER],
@@ -188,6 +189,7 @@ export const useSavePost = () => {
       return { previousUser, previousSavedPosts };
     },
     onError: (err, variables, context) => {
+      console.log(err);
       // Rollback on error
       if (context?.previousUser) {
         queryClient.setQueryData(
@@ -211,6 +213,8 @@ export const useDeleteSavedPost = () => {
   return useMutation({
     mutationFn: (savedRecordId: string) => deleteSavedPost(savedRecordId),
     onSuccess: (data, savedRecordId) => {
+      console.log(data);
+      console.log(savedRecordId);
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_CURRENT_USER],
       });
@@ -264,6 +268,8 @@ export const useDeleteSavedPost = () => {
       return { previousUser };
     },
     onError: (err, variables, context) => {
+      console.log(err);
+      console.log(variables);
       if (context?.previousUser) {
         queryClient.setQueryData(
           [QUERY_KEYS.GET_CURRENT_USER],
@@ -441,6 +447,7 @@ export const useFollowUser = () => {
       followingId: string;
     }) => followUser(followerId, followingId),
     onSuccess: (data, variables) => {
+      console.log(data);
       // Invalidate relevant queries
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_USER_FOLLOWERS, variables.followingId],
@@ -630,6 +637,7 @@ export const useUpdateUserProfile = () => {
     },
   });
 };
+
 export const useGetUserStats = (userId: string) => {
   return useQuery({
     queryKey: [QUERY_KEYS.GET_USER_STATS, userId],

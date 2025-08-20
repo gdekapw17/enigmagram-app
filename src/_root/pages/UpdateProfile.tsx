@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { FileUploader, AppLoader } from '@/components/shared';
+import { AppLoader } from '@/components/shared';
 import { useToast } from '@/hooks/use-toast';
 import { ProfileValidation } from '@/lib/validation';
 
@@ -177,7 +177,7 @@ const UpdateProfile = () => {
             <FormField
               control={form.control}
               name="file"
-              render={({ field }) => (
+              render={() => (
                 <FormItem>
                   <FormLabel className="shad-form_label">
                     Profile Image
