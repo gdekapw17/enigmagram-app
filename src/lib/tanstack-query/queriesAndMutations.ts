@@ -87,24 +87,41 @@ export const useLikePost = () => {
   return useMutation({
     mutationFn: ({
       postId,
-      likesArray,
+      userId, // ✅ Ubah dari likesArray menjadi userId
     }: {
       postId: string;
-      likesArray: string[];
-    }) => likePost(postId, likesArray),
-    onSuccess: (data) => {
+      userId: string;
+    }) => likePost(postId, userId), // ✅ Pass parameter yang benar
+    onSuccess: (data, variables) => {
+      console.log('Like mutation success:', data);
+
+      // ✅ Invalidate semua queries yang relevan
       queryClient.invalidateQueries({
-        queryKey: [QUERY_KEYS.GET_POST_BY_ID, data?.$id],
+        queryKey: [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
       });
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
       });
       queryClient.invalidateQueries({
-        queryKey: [QUERY_KEYS.GET_POSTS],
+        queryKey: [QUERY_KEYS.GET_INFINITE_POSTS],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_POSTS], // Alias untuk infinite posts
       });
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_CURRENT_USER],
       });
+      // ✅ PENTING: Invalidate liked posts
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_USER_LIKED_POSTS, variables.userId],
+      });
+      // ✅ Invalidate user posts jika ada
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_USER_POSTS],
+      });
+    },
+    onError: (error) => {
+      console.error('Like mutation error:', error);
     },
   });
 };
@@ -568,8 +585,10 @@ export const useGetUserLikedPosts = (userId: string) => {
     queryKey: [QUERY_KEYS.GET_USER_LIKED_POSTS, userId],
     queryFn: () => getUserLikedPosts(userId),
     enabled: !!userId,
-    staleTime: 1000 * 60 * 2, // 2 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 1000 * 30, // ✅ Kurangi stale time untuk data yang lebih fresh
+    gcTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: true, // ✅ Refetch saat window focus
+    refetchOnMount: true, // ✅ Selalu refetch saat mount
   });
 };
 

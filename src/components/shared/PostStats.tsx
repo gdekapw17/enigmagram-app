@@ -15,12 +15,37 @@ type PostStatsProps = {
 };
 
 const PostStats = ({ post, userId }: PostStatsProps) => {
-  const likesList: string[] =
-    post?.likes?.map((user: Models.Document) => user.$id) ?? [];
+  const likesList: string[] = useMemo(() => {
+    if (!post?.likes || !Array.isArray(post.likes)) {
+      return [];
+    }
+
+    // Handle both populated and non-populated likes
+    return post.likes.map((like: any) => {
+      // Jika like adalah object dengan user relation
+      if (like.user && typeof like.user === 'object') {
+        return like.user.$id;
+      }
+      // Jika like adalah object dengan user ID string
+      if (like.user && typeof like.user === 'string') {
+        return like.user;
+      }
+      // Fallback untuk struktur lama
+      if (like.$id) {
+        return like.$id;
+      }
+      return like;
+    });
+  }, [post?.likes]);
 
   const [likes, setLikes] = useState(likesList);
   const [isSaved, setIsSaved] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // ✅ Update likes state ketika post data berubah
+  useEffect(() => {
+    setLikes(likesList);
+  }, [likesList]);
 
   const { mutate: likePost } = useLikePost();
   const {
@@ -81,12 +106,17 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
 
     const hasLiked = likes.includes(userId);
 
+    // ✅ Optimistic update untuk UI yang responsive
     const newLikes = hasLiked
       ? likes.filter((id: string) => id !== userId)
       : [...likes, userId];
 
     setLikes(newLikes);
-    likePost({ postId: post?.$id || '', likesArray: newLikes });
+
+    likePost({
+      postId: post?.$id || '',
+      userId: userId,
+    });
   };
 
   const handleSavePost = (e: React.MouseEvent) => {

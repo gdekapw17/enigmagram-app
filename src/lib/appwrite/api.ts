@@ -210,34 +210,101 @@ export async function getRecentPosts() {
     const posts = await databases.listDocuments(
       appwriteConfig.databaseId,
       appwriteConfig.postCollectionId,
-      [Query.orderDesc('$createdAt'), Query.limit(20)],
+      [
+        Query.orderDesc('$createdAt'),
+        Query.limit(20),
+        // ✅ PENTING: Jangan pakai Query.include() untuk relations
+        // Appwrite akan auto-populate relations
+      ],
     );
 
     if (!posts) throw Error;
 
-    return posts;
+    // ✅ Untuk setiap post, ambil likes count dan data
+    const postsWithLikes = await Promise.all(
+      posts.documents.map(async (post) => {
+        try {
+          const likes = await databases.listDocuments(
+            appwriteConfig.databaseId,
+            appwriteConfig.likesCollectionId,
+            [
+              Query.equal('post', post.$id),
+              Query.limit(100), // Adjust sesuai kebutuhan
+            ],
+          );
+
+          return {
+            ...post,
+            likes: likes.documents, // Include likes data
+            likesCount: likes.total, // Include count
+          };
+        } catch (error) {
+          console.log(`Error fetching likes for post ${post.$id}:`, error);
+          return {
+            ...post,
+            likes: [],
+            likesCount: 0,
+          };
+        }
+      }),
+    );
+
+    return {
+      ...posts,
+      documents: postsWithLikes,
+    };
   } catch (error) {
-    console.log(error);
+    console.log('getRecentPosts error:', error);
     throw error;
   }
 }
 
-export async function likePost(postId: string, likesArray: string[]) {
+export async function likePost(postId: string, userId: string) {
   try {
-    const updatedPost = await databases.updateDocument(
+    console.log('🔄 Like operation:', { postId, userId });
+
+    // Check if user already liked this post
+    const existingLike = await databases.listDocuments(
       appwriteConfig.databaseId,
-      appwriteConfig.postCollectionId,
-      postId,
-      {
-        likes: likesArray,
-      },
+      appwriteConfig.likesCollectionId,
+      [
+        Query.equal('user', userId),
+        Query.equal('post', postId),
+        Query.limit(1),
+      ],
     );
 
-    if (!updatedPost) throw Error;
+    console.log('✅ Existing like check:', existingLike);
 
-    return updatedPost;
+    if (existingLike.documents.length > 0) {
+      // Unlike: delete the like record
+      await databases.deleteDocument(
+        appwriteConfig.databaseId,
+        appwriteConfig.likesCollectionId,
+        existingLike.documents[0].$id,
+      );
+
+      console.log('❌ Post unliked successfully');
+      return { action: 'unliked', likeId: null };
+    } else {
+      // Like: create new like record
+      const newLike = await databases.createDocument(
+        appwriteConfig.databaseId,
+        appwriteConfig.likesCollectionId,
+        ID.unique(),
+        {
+          user: userId,
+          post: postId,
+        },
+      );
+
+      if (!newLike) throw Error('Failed to create like');
+
+      console.log('✅ Post liked successfully:', newLike.$id);
+      return { action: 'liked', likeId: newLike.$id };
+    }
   } catch (error) {
-    console.log(error);
+    console.error('❌ Like post error:', error);
     throw error;
   }
 }
@@ -369,8 +436,7 @@ export async function getInfinitePosts({ pageParam }: { pageParam?: string }) {
   const queries: any[] = [Query.orderDesc('$updatedAt'), Query.limit(10)];
 
   if (pageParam) {
-    // pageParam adalah document ID, bukan number
-    queries.push(Query.cursorAfter(pageParam)); // Hapus .toString()
+    queries.push(Query.cursorAfter(pageParam));
   }
 
   try {
@@ -382,7 +448,36 @@ export async function getInfinitePosts({ pageParam }: { pageParam?: string }) {
 
     if (!posts) throw Error;
 
-    return posts;
+    // ✅ Include likes data untuk infinite posts
+    const postsWithLikes = await Promise.all(
+      posts.documents.map(async (post) => {
+        try {
+          const likes = await databases.listDocuments(
+            appwriteConfig.databaseId,
+            appwriteConfig.likesCollectionId,
+            [Query.equal('post', post.$id), Query.limit(100)],
+          );
+
+          return {
+            ...post,
+            likes: likes.documents,
+            likesCount: likes.total,
+          };
+        } catch (error) {
+          console.log(`Error fetching likes for post ${post.$id}:`, error);
+          return {
+            ...post,
+            likes: [],
+            likesCount: 0,
+          };
+        }
+      }),
+    );
+
+    return {
+      ...posts,
+      documents: postsWithLikes,
+    };
   } catch (error) {
     console.log('getInfinitePosts error:', error);
     throw error;
@@ -1063,22 +1158,80 @@ export async function getUserPosts(userId: string) {
 }
 
 export async function getUserLikedPosts(userId: string) {
-  if (!userId) return;
+  if (!userId) return { documents: [], total: 0 };
 
   try {
-    // Get all posts first
-    const allPosts = await databases.listDocuments(
+    console.log('Getting liked posts for user:', userId);
+
+    // ✅ Step 1: Get all likes by user
+    const userLikes = await databases.listDocuments(
       appwriteConfig.databaseId,
-      appwriteConfig.postCollectionId,
-      [Query.orderDesc('$createdAt'), Query.limit(100)],
+      appwriteConfig.likesCollectionId,
+      [
+        Query.equal('user', userId),
+        Query.orderDesc('$createdAt'),
+        Query.limit(50),
+      ],
     );
 
-    if (!allPosts) throw Error;
+    console.log('Raw likes data:', userLikes);
+    console.log('User likes found:', userLikes.documents.length);
 
-    // Filter posts that are liked by the user
-    const likedPosts = allPosts.documents.filter((post: any) => {
-      return post.likes && post.likes.includes(userId);
+    if (!userLikes.documents.length) {
+      return { documents: [], total: 0 };
+    }
+
+    // ✅ Step 2: Extract post IDs from likes
+    const postIds = userLikes.documents
+      .map((like: any) => {
+        // Handle both string and object post references
+        if (typeof like.post === 'string') {
+          return like.post;
+        } else if (like.post && like.post.$id) {
+          return like.post.$id;
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    console.log('Post IDs from likes:', postIds);
+
+    if (!postIds.length) {
+      console.log('No valid post IDs found');
+      return { documents: [], total: 0 };
+    }
+
+    // ✅ Step 3: Fetch actual post documents
+    const likedPostsPromises = postIds.map(async (postId: string) => {
+      try {
+        const post = await databases.getDocument(
+          appwriteConfig.databaseId,
+          appwriteConfig.postCollectionId,
+          postId,
+        );
+
+        // Find the corresponding like record for additional data
+        const likeRecord = userLikes.documents.find((like: any) => {
+          const likePostId =
+            typeof like.post === 'string' ? like.post : like.post?.$id;
+          return likePostId === postId;
+        });
+
+        return {
+          ...post,
+          likeId: likeRecord?.$id,
+          likedAt: likeRecord?.$createdAt,
+        };
+      } catch (error) {
+        console.log(`Error fetching post ${postId}:`, error);
+        return null;
+      }
     });
+
+    const likedPosts = (await Promise.all(likedPostsPromises)).filter(Boolean); // Remove null entries
+
+    console.log('Final liked posts:', likedPosts.length);
+    console.log('Sample liked post:', likedPosts[0]);
 
     return {
       documents: likedPosts,
@@ -1086,7 +1239,7 @@ export async function getUserLikedPosts(userId: string) {
     };
   } catch (error) {
     console.log('Get user liked posts error:', error);
-    return { documents: [] };
+    return { documents: [], total: 0 };
   }
 }
 

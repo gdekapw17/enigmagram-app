@@ -10,7 +10,15 @@ const PostDetails = () => {
   const { data: post, isPending } = useGetPostById(id || '');
   const { user } = useUserContext();
 
-  console.log(post?.tags);
+  const tags =
+    post?.tags
+      ?.map((tag: string) =>
+        tag
+          .toLowerCase()
+          .replace(/[#]| *\([^)]*\)#*/g, '')
+          .trim(),
+      )
+      .filter((tag: string) => tag.length > 0) || [];
 
   const handleDeletePost = () => {};
 
@@ -90,11 +98,11 @@ const PostDetails = () => {
 
           <div className="small-medium lg:base-regular flex flex-col flex-1 ">
             <p className="break-all">{post?.caption}</p>
-            {post?.tags?.length > 1 && (
+            {tags.length > 0 && (
               <ul className="flex flex-wrap gap-1 mt-2">
-                {post?.tags.map((tag: string) => (
+                {tags.map((tag: string) => (
                   <li key={tag} className="text-light-3">
-                    {post?.tags?.length ? `#${tag}` : ''}
+                    #{tag}
                   </li>
                 ))}
               </ul>

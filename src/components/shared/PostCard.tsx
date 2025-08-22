@@ -14,6 +14,15 @@ const PostCard = ({ post }: PostCardProps) => {
   if (!post.creator) return;
   // console.log('Full user object:', user);
   // console.log('Full post creator:', post.creator);
+  const tags =
+    post?.tags
+      ?.map((tag: string) =>
+        tag
+          .toLowerCase()
+          .replace(/[#]| *\([^)]*\)#*/g, '')
+          .trim(),
+      )
+      .filter((tag: string) => tag.length > 0) || [];
 
   return (
     <div className="post-card">
@@ -61,11 +70,11 @@ const PostCard = ({ post }: PostCardProps) => {
       <Link to={`/posts/${post.$id}`}>
         <div className="small-medium lg:base-medium py-5">
           <p className="break-all line-clamp-3">{post.caption}</p>
-          {post?.tags?.length > 1 && (
+          {tags.length > 0 && (
             <ul className="flex flex-wrap gap-1 mt-2">
-              {post?.tags.map((tag: string) => (
+              {tags.map((tag: string) => (
                 <li key={tag} className="text-light-3">
-                  {post?.tags?.length ? `#${tag}` : ''}
+                  #{tag}
                 </li>
               ))}
             </ul>
