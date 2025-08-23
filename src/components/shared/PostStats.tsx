@@ -15,52 +15,67 @@ type PostStatsProps = {
 };
 
 const PostStats = ({ post, userId }: PostStatsProps) => {
-  // ✅ Improved likes list extraction
+  // ✅ PERBAIKAN: Improved likes list extraction dengan error handling yang lebih baik
   const likesList: string[] = useMemo(() => {
     if (!post?.likes || !Array.isArray(post.likes)) {
       return [];
     }
 
-    console.log('Processing likes for post:', post.$id, post.likes);
+    console.log('Processing likes for post:', post.$id, 'likes:', post.likes);
 
     return post.likes
       .map((like: any) => {
-        // Handle relationship field 'users' (plural)
-        if (like.users && typeof like.users === 'object') {
-          return like.users.$id;
+        // ✅ Handle relationship field 'users' (sesuai database structure)
+        if (like.users) {
+          // Jika users adalah object dengan $id
+          if (typeof like.users === 'object' && like.users.$id) {
+            return like.users.$id;
+          }
+          // Jika users adalah string ID
+          if (typeof like.users === 'string') {
+            return like.users;
+          }
         }
-        // Handle relationship field 'user' (singular)
-        if (like.user && typeof like.user === 'object') {
-          return like.user.$id;
+
+        // ✅ Fallback untuk backward compatibility dengan 'user' (singular)
+        if (like.user) {
+          if (typeof like.user === 'object' && like.user.$id) {
+            return like.user.$id;
+          }
+          if (typeof like.user === 'string') {
+            return like.user;
+          }
         }
-        // Handle string ID for 'users' field
-        if (like.users && typeof like.users === 'string') {
-          return like.users;
+
+        // Last fallback - jika like object itu sendiri adalah ID
+        if (typeof like === 'string') {
+          return like;
         }
-        // Handle string ID for 'user' field
-        if (like.user && typeof like.user === 'string') {
-          return like.user;
-        }
-        // Fallback
-        return like.$id || like;
+
+        return null;
       })
-      .filter(Boolean); // Remove any undefined/null values
+      .filter((id): id is string => id !== null && id !== undefined);
   }, [post?.likes, post?.$id]);
 
-  // ✅ Initialize likes from server data, not empty array
-  const [likes, setLikes] = useState<string[]>(likesList);
+  // ✅ PERBAIKAN: State management yang lebih robust
+  const [likes, setLikes] = useState<string[]>([]);
   const [isSaved, setIsSaved] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // ✅ CRITICAL: Always sync local state with server data
+  // ✅ PERBAIKAN: Sync local state dengan server data setiap kali post berubah
   useEffect(() => {
     console.log('Syncing likes state:', {
-      likesList,
-      currentLikes: likes,
       postId: post?.$id,
+      serverLikes: likesList,
+      localLikes: likes,
+      shouldUpdate: JSON.stringify(likesList) !== JSON.stringify(likes),
     });
-    setLikes(likesList);
-  }, [likesList]); // This will run when post data changes (including after refresh)
+
+    // Hanya update jika benar-benar berbeda untuk mencegah infinite loop
+    if (JSON.stringify(likesList) !== JSON.stringify(likes)) {
+      setLikes(likesList);
+    }
+  }, [likesList, post?.$id]); // Removed 'likes' from dependency to prevent infinite loop
 
   const { mutate: likePost, isPending: isLiking } = useLikePost();
   const {
@@ -122,13 +137,13 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
     if (!post?.$id || !userId) return;
 
     const hasLiked = likes.includes(userId);
-
-    // ✅ Optimistic update dengan rollback mechanism
     const newLikes = hasLiked
       ? likes.filter((id: string) => id !== userId)
       : [...likes, userId];
 
-    const previousLikes = likes;
+    const previousLikes = [...likes]; // Create copy for rollback
+
+    // ✅ PERBAIKAN: Optimistic update
     setLikes(newLikes);
 
     likePost(
@@ -142,8 +157,11 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
           // ✅ Rollback optimistic update on error
           setLikes(previousLikes);
         },
-        // ✅ Note: onSuccess handled by query invalidation in useLikePost
-        // This will refetch the post data with updated likes
+        onSuccess: (data) => {
+          console.log('✅ Like operation successful:', data);
+          // ✅ PERBAIKAN: Tidak perlu update manual karena query invalidation akan handle
+          // State akan di-sync ulang dari useEffect ketika post data di-refetch
+        },
       },
     );
   };
@@ -156,22 +174,26 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
 
     if (savedPostRecord) {
       // Unsave post
+      const previousSaved = isSaved;
       setIsSaved(false);
+
       deleteSavedPost(savedPostRecord.$id, {
         onError: () => {
           // Rollback state jika error
-          setIsSaved(true);
+          setIsSaved(previousSaved);
         },
       });
     } else {
       // Save post
+      const previousSaved = isSaved;
       setIsSaved(true);
+
       savePost(
         { postId: post?.$id || '', userId: userId },
         {
           onError: () => {
             // Rollback state jika error
-            setIsSaved(false);
+            setIsSaved(previousSaved);
           },
         },
       );
@@ -182,14 +204,15 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
   const showSaveLoader =
     isSavingPost || isDeletingPost || isLoadingUser || !isInitialized;
 
-  // ✅ Debug logging
+  // ✅ Enhanced debug logging
   console.log('PostStats render:', {
     postId: post?.$id,
     likesCount: likes.length,
-    likesList: likesList,
-    currentLikes: likes,
+    serverLikesList: likesList,
+    localLikes: likes,
     hasLiked: checkIsLiked(likes, userId),
     isLiking,
+    isPostDataStale: JSON.stringify(likesList) !== JSON.stringify(likes),
   });
 
   return (

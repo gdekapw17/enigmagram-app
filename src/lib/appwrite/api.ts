@@ -215,39 +215,34 @@ export async function getRecentPosts() {
 
     if (!posts) throw Error;
 
-    // ✅ Enhanced likes fetching with better error handling
+    // ✅ PERBAIKAN: Konsisten menggunakan field name 'posts' (plural)
     const postsWithLikes = await Promise.all(
       posts.documents.map(async (post) => {
         try {
-          // ✅ Use correct field name based on your database structure
           const likes = await databases.listDocuments(
             appwriteConfig.databaseId,
             appwriteConfig.likesCollectionId,
             [
-              Query.equal('posts', post.$id), // or 'post' if you changed the field name
-              Query.limit(1000), // Increase limit for posts with many likes
+              Query.equal('posts', post.$id), // ✅ Konsisten dengan database schema
+              Query.limit(100),
             ],
           );
 
-          console.log(`Likes for post ${post.$id}:`, likes.documents.length);
-
           return {
             ...post,
-            likes: likes.documents, // ✅ Always include likes array
+            likes: likes.documents,
             likesCount: likes.total,
           };
         } catch (error) {
           console.log(`Error fetching likes for post ${post.$id}:`, error);
           return {
             ...post,
-            likes: [], // ✅ Fallback to empty array, not undefined
+            likes: [],
             likesCount: 0,
           };
         }
       }),
     );
-
-    console.log('Posts with likes loaded:', postsWithLikes.length);
 
     return {
       ...posts,
@@ -263,13 +258,13 @@ export async function likePost(postId: string, userId: string) {
   try {
     console.log('🔄 Like operation:', { postId, userId });
 
-    // Check if user already liked this post
+    // ✅ CRITICAL: Check existing like dengan field name yang benar
     const existingLike = await databases.listDocuments(
       appwriteConfig.databaseId,
       appwriteConfig.likesCollectionId,
       [
-        Query.equal('users', userId), // ✅ Changed from 'user' to 'users'
-        Query.equal('posts', postId), // ✅ Changed from 'post' to 'posts'
+        Query.equal('users', userId), // ✅ Sesuaikan dengan database structure (plural)
+        Query.equal('posts', postId), // ✅ Sesuaikan dengan database structure (plural)
         Query.limit(1),
       ],
     );
@@ -293,8 +288,8 @@ export async function likePost(postId: string, userId: string) {
         appwriteConfig.likesCollectionId,
         ID.unique(),
         {
-          users: userId, // ✅ Changed from 'user' to 'users'
-          posts: postId, // ✅ Changed from 'post' to 'posts'
+          users: userId, // ✅ Field name harus sama dengan yang di database
+          posts: postId, // ✅ Field name harus sama dengan yang di database
         },
       );
 
@@ -351,17 +346,65 @@ export async function getPostById(postId: string) {
   if (!postId) return;
 
   try {
+    console.log('Fetching post by ID:', postId);
+
+    // ✅ Get post dengan semua relationship data
     const post = await databases.getDocument(
       appwriteConfig.databaseId,
       appwriteConfig.postCollectionId,
       postId,
     );
 
-    if (!post) throw Error;
+    if (!post) throw Error('Post not found');
 
-    return post;
+    console.log('Raw post data:', post);
+
+    // ✅ PERBAIKAN: Populate creator data jika belum ada
+    let creatorData = post.creator;
+    if (typeof post.creator === 'string') {
+      // Jika creator hanya ID string, fetch full user data
+      try {
+        creatorData = await databases.getDocument(
+          appwriteConfig.databaseId,
+          appwriteConfig.userCollectionId,
+          post.creator,
+        );
+        console.log('Fetched creator data:', creatorData);
+      } catch (error) {
+        console.log('Error fetching creator:', error);
+        creatorData = {
+          $id: post.creator,
+          name: 'Unknown User',
+          imageUrl: '/assets/icons/profile-placeholder.svg',
+        };
+      }
+    }
+
+    // ✅ Get likes data untuk post ini
+    const likes = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.likesCollectionId,
+      [Query.equal('posts', post.$id), Query.limit(100)],
+    );
+
+    console.log('Fetched likes data:', likes);
+
+    // ✅ PERBAIKAN: Ensure all required properties exist
+    const enrichedPost = {
+      ...post,
+      creator: creatorData,
+      tags: Array.isArray(post.tags) ? post.tags : [],
+      location: post.location || '',
+      caption: post.caption || '',
+      likes: likes.documents,
+      likesCount: likes.total,
+    };
+
+    console.log('Final enriched post:', enrichedPost);
+
+    return enrichedPost;
   } catch (error) {
-    console.log(error);
+    console.log('getPostById error:', error);
     throw error;
   }
 }
@@ -448,14 +491,17 @@ export async function getInfinitePosts({ pageParam }: { pageParam?: string }) {
 
     if (!posts) throw Error;
 
-    // ✅ Include likes data untuk infinite posts
+    // ✅ PERBAIKAN: Konsisten menggunakan field name 'posts' (plural)
     const postsWithLikes = await Promise.all(
       posts.documents.map(async (post) => {
         try {
           const likes = await databases.listDocuments(
             appwriteConfig.databaseId,
             appwriteConfig.likesCollectionId,
-            [Query.equal('post', post.$id), Query.limit(100)],
+            [
+              Query.equal('posts', post.$id), // ✅ Konsisten dengan database schema
+              Query.limit(100),
+            ],
           );
 
           return {

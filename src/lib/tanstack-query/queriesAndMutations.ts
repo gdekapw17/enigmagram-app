@@ -87,73 +87,120 @@ export const useLikePost = () => {
   return useMutation({
     mutationFn: ({ postId, userId }: { postId: string; userId: string }) =>
       likePost(postId, userId),
-    onSuccess: (data, variables) => {
-      console.log('Like mutation success:', data);
 
-      // ✅ Invalidate all relevant queries untuk memastikan UI update
+    onMutate: async ({ postId, userId }) => {
+      console.log('🔄 Starting like mutation for:', { postId, userId });
+
+      // ✅ Cancel outgoing queries to prevent race conditions
+      await queryClient.cancelQueries({
+        queryKey: [QUERY_KEYS.GET_POST_BY_ID, postId],
+      });
+      await queryClient.cancelQueries({
+        queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
+      });
+      await queryClient.cancelQueries({
+        queryKey: [QUERY_KEYS.GET_INFINITE_POSTS],
+      });
+
+      // ✅ Snapshot previous values for rollback
+      const previousPost = queryClient.getQueryData([
+        QUERY_KEYS.GET_POST_BY_ID,
+        postId,
+      ]);
+      const previousRecentPosts = queryClient.getQueryData([
+        QUERY_KEYS.GET_RECENT_POSTS,
+      ]);
+      const previousInfinitePosts = queryClient.getQueryData([
+        QUERY_KEYS.GET_INFINITE_POSTS,
+      ]);
+
+      return {
+        previousPost,
+        previousRecentPosts,
+        previousInfinitePosts,
+        postId,
+        userId,
+      };
+    },
+
+    onSuccess: (data, variables, context) => {
+      console.log(context);
+      console.log('✅ Like mutation success:', data);
+
+      // ✅ PERBAIKAN: Invalidate dan refetch semua query yang relevan
       const queriesToInvalidate = [
+        // Specific post
         [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
+        // Posts lists
         [QUERY_KEYS.GET_RECENT_POSTS],
         [QUERY_KEYS.GET_INFINITE_POSTS],
         [QUERY_KEYS.GET_POSTS],
+        // User data
         [QUERY_KEYS.GET_CURRENT_USER],
         [QUERY_KEYS.GET_USER_LIKED_POSTS, variables.userId],
-        [QUERY_KEYS.GET_USER_POSTS],
+        [QUERY_KEYS.GET_USER_POSTS, variables.userId],
+        // Search results yang mungkin include post ini
+        [QUERY_KEYS.SEARCH_POSTS],
+        [QUERY_KEYS.ADVANCED_SEARCH_POSTS],
+        // Saved posts jika user pernah save post ini
+        [QUERY_KEYS.GET_SAVED_POSTS],
       ];
 
-      // ✅ Invalidate semua queries secara bersamaan
+      // Invalidate semua query terkait
       queriesToInvalidate.forEach((queryKey) => {
         queryClient.invalidateQueries({ queryKey });
       });
 
-      // ✅ BONUS: Update cache secara optimistic untuk response cepat
-      // Update post cache langsung
-      queryClient.setQueryData(
-        [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
-        (oldPost: any) => {
-          if (!oldPost) return oldPost;
-
-          const currentUserLiked = oldPost.likes?.some((like: any) => {
-            const likeUserId =
-              like.users?.$id || like.user?.$id || like.users || like.user;
-            return likeUserId === variables.userId;
-          });
-
-          let newLikes = oldPost.likes || [];
-
-          if (data.action === 'liked' && !currentUserLiked) {
-            // Add like
-            newLikes = [
-              ...newLikes,
-              {
-                $id: data.likeId,
-                users: variables.userId, // or user: variables.userId
-                posts: variables.postId, // or post: variables.postId
-              },
-            ];
-          } else if (data.action === 'unliked' && currentUserLiked) {
-            // Remove like
-            newLikes = newLikes.filter((like: any) => {
-              const likeUserId =
-                like.users?.$id || like.user?.$id || like.users || like.user;
-              return likeUserId !== variables.userId;
-            });
-          }
-
-          return {
-            ...oldPost,
-            likes: newLikes,
-            likesCount: newLikes.length,
-          };
-        },
-      );
-    },
-    onError: (error, variables) => {
-      console.error('Like mutation error:', error);
-
-      // ✅ Force refetch on error untuk memastikan data konsisten
-      queryClient.invalidateQueries({
+      // ✅ TAMBAHAN: Force refetch untuk query yang paling penting
+      queryClient.refetchQueries({
         queryKey: [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
+      });
+    },
+
+    onError: (error, variables, context) => {
+      console.log(variables);
+      console.error('❌ Like mutation error:', error);
+
+      // ✅ Rollback optimistic updates on error
+      if (context?.previousPost) {
+        queryClient.setQueryData(
+          [QUERY_KEYS.GET_POST_BY_ID, context.postId],
+          context.previousPost,
+        );
+      }
+      if (context?.previousRecentPosts) {
+        queryClient.setQueryData(
+          [QUERY_KEYS.GET_RECENT_POSTS],
+          context.previousRecentPosts,
+        );
+      }
+      if (context?.previousInfinitePosts) {
+        queryClient.setQueryData(
+          [QUERY_KEYS.GET_INFINITE_POSTS],
+          context.previousInfinitePosts,
+        );
+      }
+
+      console.error('Failed to like/unlike post:', error.message);
+    },
+
+    onSettled: (data, error, variables) => {
+      console.log(data);
+      console.log(error);
+
+      // ✅ PERBAIKAN: Always refetch key queries untuk ensure consistency
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEYS.GET_INFINITE_POSTS],
+        }),
+      ]).then(() => {
+        console.log('✅ All post queries invalidated after like operation');
       });
     },
   });
