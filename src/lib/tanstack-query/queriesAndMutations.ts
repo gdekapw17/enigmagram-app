@@ -85,43 +85,76 @@ export const useLikePost = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      postId,
-      userId, // ✅ Ubah dari likesArray menjadi userId
-    }: {
-      postId: string;
-      userId: string;
-    }) => likePost(postId, userId), // ✅ Pass parameter yang benar
+    mutationFn: ({ postId, userId }: { postId: string; userId: string }) =>
+      likePost(postId, userId),
     onSuccess: (data, variables) => {
       console.log('Like mutation success:', data);
 
-      // ✅ Invalidate semua queries yang relevan
+      // ✅ Invalidate all relevant queries untuk memastikan UI update
+      const queriesToInvalidate = [
+        [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
+        [QUERY_KEYS.GET_RECENT_POSTS],
+        [QUERY_KEYS.GET_INFINITE_POSTS],
+        [QUERY_KEYS.GET_POSTS],
+        [QUERY_KEYS.GET_CURRENT_USER],
+        [QUERY_KEYS.GET_USER_LIKED_POSTS, variables.userId],
+        [QUERY_KEYS.GET_USER_POSTS],
+      ];
+
+      // ✅ Invalidate semua queries secara bersamaan
+      queriesToInvalidate.forEach((queryKey) => {
+        queryClient.invalidateQueries({ queryKey });
+      });
+
+      // ✅ BONUS: Update cache secara optimistic untuk response cepat
+      // Update post cache langsung
+      queryClient.setQueryData(
+        [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
+        (oldPost: any) => {
+          if (!oldPost) return oldPost;
+
+          const currentUserLiked = oldPost.likes?.some((like: any) => {
+            const likeUserId =
+              like.users?.$id || like.user?.$id || like.users || like.user;
+            return likeUserId === variables.userId;
+          });
+
+          let newLikes = oldPost.likes || [];
+
+          if (data.action === 'liked' && !currentUserLiked) {
+            // Add like
+            newLikes = [
+              ...newLikes,
+              {
+                $id: data.likeId,
+                users: variables.userId, // or user: variables.userId
+                posts: variables.postId, // or post: variables.postId
+              },
+            ];
+          } else if (data.action === 'unliked' && currentUserLiked) {
+            // Remove like
+            newLikes = newLikes.filter((like: any) => {
+              const likeUserId =
+                like.users?.$id || like.user?.$id || like.users || like.user;
+              return likeUserId !== variables.userId;
+            });
+          }
+
+          return {
+            ...oldPost,
+            likes: newLikes,
+            likesCount: newLikes.length,
+          };
+        },
+      );
+    },
+    onError: (error, variables) => {
+      console.error('Like mutation error:', error);
+
+      // ✅ Force refetch on error untuk memastikan data konsisten
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
       });
-      queryClient.invalidateQueries({
-        queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [QUERY_KEYS.GET_INFINITE_POSTS],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [QUERY_KEYS.GET_POSTS], // Alias untuk infinite posts
-      });
-      queryClient.invalidateQueries({
-        queryKey: [QUERY_KEYS.GET_CURRENT_USER],
-      });
-      // ✅ PENTING: Invalidate liked posts
-      queryClient.invalidateQueries({
-        queryKey: [QUERY_KEYS.GET_USER_LIKED_POSTS, variables.userId],
-      });
-      // ✅ Invalidate user posts jika ada
-      queryClient.invalidateQueries({
-        queryKey: [QUERY_KEYS.GET_USER_POSTS],
-      });
-    },
-    onError: (error) => {
-      console.error('Like mutation error:', error);
     },
   });
 };

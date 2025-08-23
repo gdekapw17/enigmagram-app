@@ -36,8 +36,8 @@ const Profile = () => {
   const { data: userPosts, isLoading: isPostsLoading } = useGetUserPosts(
     id || '',
   );
-  // const { data: likedPosts, isLoading: isLikedPostsLoading } =
-  useGetUserLikedPosts(id || '');
+  const { data: likedPosts, isLoading: isLikedPostsLoading } =
+    useGetUserLikedPosts(id || '');
   const { data: followers, isLoading: isFollowersLoading } =
     useGetUserFollowers(id || '');
   const { data: following, isLoading: isFollowingLoading } =
@@ -89,15 +89,15 @@ const Profile = () => {
           <p className="text-light-4 mt-10 text-center w-full">No posts yet</p>
         );
 
-      // case 'liked':
-      //   if (isLikedPostsLoading) return <AppLoader />;
-      //   return likedPosts?.documents?.length ? (
-      //     <GridPostList posts={likedPosts.documents || []} showUser={false} />
-      //   ) : (
-      //     <p className="text-light-4 mt-10 text-center w-full">
-      //       No liked posts
-      //     </p>
-      //   );
+      case 'liked':
+        if (isLikedPostsLoading) return <AppLoader />;
+        return likedPosts?.documents?.length ? (
+          <GridPostList posts={likedPosts.documents || []} showUser={false} />
+        ) : (
+          <p className="text-light-4 mt-10 text-center w-full">
+            No liked posts
+          </p>
+        );
 
       case 'followers':
         if (isFollowersLoading) return <AppLoader />;

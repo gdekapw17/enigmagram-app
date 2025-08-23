@@ -15,39 +15,54 @@ type PostStatsProps = {
 };
 
 const PostStats = ({ post, userId }: PostStatsProps) => {
+  // ✅ Improved likes list extraction
   const likesList: string[] = useMemo(() => {
     if (!post?.likes || !Array.isArray(post.likes)) {
       return [];
     }
 
-    // Handle both populated and non-populated likes
-    return post.likes.map((like: any) => {
-      // Jika like adalah object dengan user relation
-      if (like.user && typeof like.user === 'object') {
-        return like.user.$id;
-      }
-      // Jika like adalah object dengan user ID string
-      if (like.user && typeof like.user === 'string') {
-        return like.user;
-      }
-      // Fallback untuk struktur lama
-      if (like.$id) {
-        return like.$id;
-      }
-      return like;
-    });
-  }, [post?.likes]);
+    console.log('Processing likes for post:', post.$id, post.likes);
 
-  const [likes, setLikes] = useState(likesList);
+    return post.likes
+      .map((like: any) => {
+        // Handle relationship field 'users' (plural)
+        if (like.users && typeof like.users === 'object') {
+          return like.users.$id;
+        }
+        // Handle relationship field 'user' (singular)
+        if (like.user && typeof like.user === 'object') {
+          return like.user.$id;
+        }
+        // Handle string ID for 'users' field
+        if (like.users && typeof like.users === 'string') {
+          return like.users;
+        }
+        // Handle string ID for 'user' field
+        if (like.user && typeof like.user === 'string') {
+          return like.user;
+        }
+        // Fallback
+        return like.$id || like;
+      })
+      .filter(Boolean); // Remove any undefined/null values
+  }, [post?.likes, post?.$id]);
+
+  // ✅ Initialize likes from server data, not empty array
+  const [likes, setLikes] = useState<string[]>(likesList);
   const [isSaved, setIsSaved] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // ✅ Update likes state ketika post data berubah
+  // ✅ CRITICAL: Always sync local state with server data
   useEffect(() => {
+    console.log('Syncing likes state:', {
+      likesList,
+      currentLikes: likes,
+      postId: post?.$id,
+    });
     setLikes(likesList);
-  }, [likesList]);
+  }, [likesList]); // This will run when post data changes (including after refresh)
 
-  const { mutate: likePost } = useLikePost();
+  const { mutate: likePost, isPending: isLiking } = useLikePost();
   const {
     mutate: savePost,
     isPending: isSavingPost,
@@ -104,19 +119,33 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
   const handleLikePost = (e: React.MouseEvent) => {
     e.stopPropagation();
 
+    if (!post?.$id || !userId) return;
+
     const hasLiked = likes.includes(userId);
 
-    // ✅ Optimistic update untuk UI yang responsive
+    // ✅ Optimistic update dengan rollback mechanism
     const newLikes = hasLiked
       ? likes.filter((id: string) => id !== userId)
       : [...likes, userId];
 
+    const previousLikes = likes;
     setLikes(newLikes);
 
-    likePost({
-      postId: post?.$id || '',
-      userId: userId,
-    });
+    likePost(
+      {
+        postId: post.$id,
+        userId: userId,
+      },
+      {
+        onError: (error) => {
+          console.error('Like post failed:', error);
+          // ✅ Rollback optimistic update on error
+          setLikes(previousLikes);
+        },
+        // ✅ Note: onSuccess handled by query invalidation in useLikePost
+        // This will refetch the post data with updated likes
+      },
+    );
   };
 
   const handleSavePost = (e: React.MouseEvent) => {
@@ -153,6 +182,16 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
   const showSaveLoader =
     isSavingPost || isDeletingPost || isLoadingUser || !isInitialized;
 
+  // ✅ Debug logging
+  console.log('PostStats render:', {
+    postId: post?.$id,
+    likesCount: likes.length,
+    likesList: likesList,
+    currentLikes: likes,
+    hasLiked: checkIsLiked(likes, userId),
+    isLiking,
+  });
+
   return (
     <div className="flex justify-between items-center z-20 gap-4">
       <div className="flex gap-2">
@@ -166,7 +205,8 @@ const PostStats = ({ post, userId }: PostStatsProps) => {
           width={20}
           height={20}
           onClick={handleLikePost}
-          className="cursor-pointer"
+          className={`cursor-pointer ${isLiking ? 'opacity-50' : ''}`}
+          style={{ pointerEvents: isLiking ? 'none' : 'auto' }}
         />
         <p className="small-medium lg:base-medium">{likes.length}</p>
       </div>

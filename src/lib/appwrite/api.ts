@@ -210,44 +210,44 @@ export async function getRecentPosts() {
     const posts = await databases.listDocuments(
       appwriteConfig.databaseId,
       appwriteConfig.postCollectionId,
-      [
-        Query.orderDesc('$createdAt'),
-        Query.limit(20),
-        // ✅ PENTING: Jangan pakai Query.include() untuk relations
-        // Appwrite akan auto-populate relations
-      ],
+      [Query.orderDesc('$createdAt'), Query.limit(20)],
     );
 
     if (!posts) throw Error;
 
-    // ✅ Untuk setiap post, ambil likes count dan data
+    // ✅ Enhanced likes fetching with better error handling
     const postsWithLikes = await Promise.all(
       posts.documents.map(async (post) => {
         try {
+          // ✅ Use correct field name based on your database structure
           const likes = await databases.listDocuments(
             appwriteConfig.databaseId,
             appwriteConfig.likesCollectionId,
             [
-              Query.equal('post', post.$id),
-              Query.limit(100), // Adjust sesuai kebutuhan
+              Query.equal('posts', post.$id), // or 'post' if you changed the field name
+              Query.limit(1000), // Increase limit for posts with many likes
             ],
           );
 
+          console.log(`Likes for post ${post.$id}:`, likes.documents.length);
+
           return {
             ...post,
-            likes: likes.documents, // Include likes data
-            likesCount: likes.total, // Include count
+            likes: likes.documents, // ✅ Always include likes array
+            likesCount: likes.total,
           };
         } catch (error) {
           console.log(`Error fetching likes for post ${post.$id}:`, error);
           return {
             ...post,
-            likes: [],
+            likes: [], // ✅ Fallback to empty array, not undefined
             likesCount: 0,
           };
         }
       }),
     );
+
+    console.log('Posts with likes loaded:', postsWithLikes.length);
 
     return {
       ...posts,
@@ -268,8 +268,8 @@ export async function likePost(postId: string, userId: string) {
       appwriteConfig.databaseId,
       appwriteConfig.likesCollectionId,
       [
-        Query.equal('user', userId),
-        Query.equal('post', postId),
+        Query.equal('users', userId), // ✅ Changed from 'user' to 'users'
+        Query.equal('posts', postId), // ✅ Changed from 'post' to 'posts'
         Query.limit(1),
       ],
     );
@@ -293,8 +293,8 @@ export async function likePost(postId: string, userId: string) {
         appwriteConfig.likesCollectionId,
         ID.unique(),
         {
-          user: userId,
-          post: postId,
+          users: userId, // ✅ Changed from 'user' to 'users'
+          posts: postId, // ✅ Changed from 'post' to 'posts'
         },
       );
 
@@ -1163,12 +1163,12 @@ export async function getUserLikedPosts(userId: string) {
   try {
     console.log('Getting liked posts for user:', userId);
 
-    // ✅ Step 1: Get all likes by user
+    // ✅ Get likes dengan field name yang benar
     const userLikes = await databases.listDocuments(
       appwriteConfig.databaseId,
       appwriteConfig.likesCollectionId,
       [
-        Query.equal('user', userId),
+        Query.equal('users', userId), // ✅ Changed from 'user' to 'users'
         Query.orderDesc('$createdAt'),
         Query.limit(50),
       ],
@@ -1181,56 +1181,28 @@ export async function getUserLikedPosts(userId: string) {
       return { documents: [], total: 0 };
     }
 
-    // ✅ Step 2: Extract post IDs from likes
-    const postIds = userLikes.documents
+    // ✅ Extract posts dari relationship
+    const likedPosts = userLikes.documents
       .map((like: any) => {
-        // Handle both string and object post references
-        if (typeof like.post === 'string') {
-          return like.post;
-        } else if (like.post && like.post.$id) {
-          return like.post.$id;
+        console.log('Processing like:', like);
+
+        // ✅ Relationship field sekarang 'posts' (plural)
+        const post = like.posts;
+
+        if (!post || !post.$id) {
+          console.log('Post data not found for like:', like.$id);
+          return null;
         }
-        return null;
-      })
-      .filter(Boolean);
-
-    console.log('Post IDs from likes:', postIds);
-
-    if (!postIds.length) {
-      console.log('No valid post IDs found');
-      return { documents: [], total: 0 };
-    }
-
-    // ✅ Step 3: Fetch actual post documents
-    const likedPostsPromises = postIds.map(async (postId: string) => {
-      try {
-        const post = await databases.getDocument(
-          appwriteConfig.databaseId,
-          appwriteConfig.postCollectionId,
-          postId,
-        );
-
-        // Find the corresponding like record for additional data
-        const likeRecord = userLikes.documents.find((like: any) => {
-          const likePostId =
-            typeof like.post === 'string' ? like.post : like.post?.$id;
-          return likePostId === postId;
-        });
 
         return {
           ...post,
-          likeId: likeRecord?.$id,
-          likedAt: likeRecord?.$createdAt,
+          likeId: like.$id,
+          likedAt: like.$createdAt,
         };
-      } catch (error) {
-        console.log(`Error fetching post ${postId}:`, error);
-        return null;
-      }
-    });
+      })
+      .filter((post) => post !== null);
 
-    const likedPosts = (await Promise.all(likedPostsPromises)).filter(Boolean); // Remove null entries
-
-    console.log('Final liked posts:', likedPosts.length);
+    console.log('Processed liked posts:', likedPosts.length);
     console.log('Sample liked post:', likedPosts[0]);
 
     return {
