@@ -35,6 +35,7 @@ import {
   getUserLikedPosts,
   updateUserProfile,
   getUserStats,
+  checkUserLikedPost,
 } from '../appwrite/api';
 import type { INewUser, INewPost, IUpdatePost } from '@/types';
 import { QUERY_KEYS } from './queryKeys';
@@ -76,8 +77,11 @@ export const useGetRecentPosts = () => {
   return useQuery({
     queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
     queryFn: getRecentPosts,
-    staleTime: 1000 * 60 * 5, // 5 menit
-    gcTime: 1000 * 60 * 10, // 10 menit (sebelumnya cacheTime)
+    staleTime: 1000 * 30, // ✅ Reduce to 30 seconds
+    gcTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: true,
+    refetchInterval: 60000, // Refetch every minute
+    retry: 2,
   });
 };
 
@@ -85,123 +89,269 @@ export const useLikePost = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ postId, userId }: { postId: string; userId: string }) =>
-      likePost(postId, userId),
+    mutationFn: async ({
+      postId,
+      userId,
+    }: {
+      postId: string;
+      userId: string;
+    }) => {
+      console.log('🚀 Starting like mutation:', { postId, userId });
+      const result = await likePost(postId, userId);
 
-    onMutate: async ({ postId, userId }) => {
-      console.log('🔄 Starting like mutation for:', { postId, userId });
+      if (!result.success) {
+        throw new Error('Failed to like/unlike post');
+      }
 
-      // ✅ Cancel outgoing queries to prevent race conditions
-      await queryClient.cancelQueries({
-        queryKey: [QUERY_KEYS.GET_POST_BY_ID, postId],
-      });
-      await queryClient.cancelQueries({
-        queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
-      });
-      await queryClient.cancelQueries({
-        queryKey: [QUERY_KEYS.GET_INFINITE_POSTS],
-      });
-
-      // ✅ Snapshot previous values for rollback
-      const previousPost = queryClient.getQueryData([
-        QUERY_KEYS.GET_POST_BY_ID,
-        postId,
-      ]);
-      const previousRecentPosts = queryClient.getQueryData([
-        QUERY_KEYS.GET_RECENT_POSTS,
-      ]);
-      const previousInfinitePosts = queryClient.getQueryData([
-        QUERY_KEYS.GET_INFINITE_POSTS,
-      ]);
-
-      return {
-        previousPost,
-        previousRecentPosts,
-        previousInfinitePosts,
-        postId,
-        userId,
-      };
+      return result;
     },
 
-    onSuccess: (data, variables, context) => {
-      console.log(context);
+    onMutate: async ({ postId, userId }) => {
+      console.log('🔄 Optimistic update started for:', { postId, userId });
+
+      // ✅ Cancel all outgoing queries to prevent race conditions
+      const queriesToCancel = [
+        [QUERY_KEYS.GET_POST_BY_ID, postId],
+        [QUERY_KEYS.GET_RECENT_POSTS],
+        [QUERY_KEYS.GET_INFINITE_POSTS],
+        [QUERY_KEYS.GET_USER_LIKED_POSTS, userId],
+        [QUERY_KEYS.SEARCH_POSTS],
+      ];
+
+      await Promise.all(
+        queriesToCancel.map((queryKey) =>
+          queryClient.cancelQueries({ queryKey }),
+        ),
+      );
+
+      // ✅ Snapshot all previous values for rollback
+      const previousData = {
+        post: queryClient.getQueryData([QUERY_KEYS.GET_POST_BY_ID, postId]),
+        recentPosts: queryClient.getQueryData([QUERY_KEYS.GET_RECENT_POSTS]),
+        infinitePosts: queryClient.getQueryData([
+          QUERY_KEYS.GET_INFINITE_POSTS,
+        ]),
+        userLikedPosts: queryClient.getQueryData([
+          QUERY_KEYS.GET_USER_LIKED_POSTS,
+          userId,
+        ]),
+      };
+
+      // ✅ Optimistic update: Single post
+      queryClient.setQueryData(
+        [QUERY_KEYS.GET_POST_BY_ID, postId],
+        (oldData: any) => {
+          if (!oldData) return oldData;
+
+          const userAlreadyLiked = oldData.likes?.some(
+            (like: any) => like.users === userId || like.user === userId,
+          );
+
+          if (userAlreadyLiked) {
+            // Remove like
+            return {
+              ...oldData,
+              likes: oldData.likes.filter(
+                (like: any) => like.users !== userId && like.user !== userId,
+              ),
+              likesCount: Math.max(0, (oldData.likesCount || 0) - 1),
+            };
+          } else {
+            // Add like
+            const newLike = {
+              $id: `temp-${Date.now()}`,
+              users: userId,
+              posts: postId,
+              $createdAt: new Date().toISOString(),
+            };
+            return {
+              ...oldData,
+              likes: [...(oldData.likes || []), newLike],
+              likesCount: (oldData.likesCount || 0) + 1,
+            };
+          }
+        },
+      );
+
+      // ✅ Optimistic update: Recent posts
+      queryClient.setQueryData(
+        [QUERY_KEYS.GET_RECENT_POSTS],
+        (oldData: any) => {
+          if (!oldData?.documents) return oldData;
+
+          return {
+            ...oldData,
+            documents: oldData.documents.map((post: any) => {
+              if (post.$id !== postId) return post;
+
+              const userAlreadyLiked = post.likes?.some(
+                (like: any) => like.users === userId || like.user === userId,
+              );
+
+              if (userAlreadyLiked) {
+                return {
+                  ...post,
+                  likes: post.likes.filter(
+                    (like: any) =>
+                      like.users !== userId && like.user !== userId,
+                  ),
+                  likesCount: Math.max(0, (post.likesCount || 0) - 1),
+                };
+              } else {
+                const newLike = {
+                  $id: `temp-${Date.now()}`,
+                  users: userId,
+                  posts: postId,
+                };
+                return {
+                  ...post,
+                  likes: [...(post.likes || []), newLike],
+                  likesCount: (post.likesCount || 0) + 1,
+                };
+              }
+            }),
+          };
+        },
+      );
+
+      // ✅ Optimistic update: Infinite posts
+      queryClient.setQueryData(
+        [QUERY_KEYS.GET_INFINITE_POSTS],
+        (oldData: any) => {
+          if (!oldData?.pages) return oldData;
+
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page: any) => ({
+              ...page,
+              documents: page.documents.map((post: any) => {
+                if (post.$id !== postId) return post;
+
+                const userAlreadyLiked = post.likes?.some(
+                  (like: any) => like.users === userId || like.user === userId,
+                );
+
+                if (userAlreadyLiked) {
+                  return {
+                    ...post,
+                    likes: post.likes.filter(
+                      (like: any) =>
+                        like.users !== userId && like.user !== userId,
+                    ),
+                    likesCount: Math.max(0, (post.likesCount || 0) - 1),
+                  };
+                } else {
+                  const newLike = {
+                    $id: `temp-${Date.now()}`,
+                    users: userId,
+                    posts: postId,
+                  };
+                  return {
+                    ...post,
+                    likes: [...(post.likes || []), newLike],
+                    likesCount: (post.likesCount || 0) + 1,
+                  };
+                }
+              }),
+            })),
+          };
+        },
+      );
+
+      return { previousData, postId, userId };
+    },
+
+    onSuccess: async (data, variables) => {
       console.log('✅ Like mutation success:', data);
 
-      // ✅ PERBAIKAN: Invalidate dan refetch semua query yang relevan
+      // ✅ CRITICAL: Invalidate all related queries untuk fresh data
       const queriesToInvalidate = [
-        // Specific post
         [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
-        // Posts lists
         [QUERY_KEYS.GET_RECENT_POSTS],
         [QUERY_KEYS.GET_INFINITE_POSTS],
         [QUERY_KEYS.GET_POSTS],
-        // User data
-        [QUERY_KEYS.GET_CURRENT_USER],
         [QUERY_KEYS.GET_USER_LIKED_POSTS, variables.userId],
-        [QUERY_KEYS.GET_USER_POSTS, variables.userId],
-        // Search results yang mungkin include post ini
         [QUERY_KEYS.SEARCH_POSTS],
-        [QUERY_KEYS.ADVANCED_SEARCH_POSTS],
-        // Saved posts jika user pernah save post ini
         [QUERY_KEYS.GET_SAVED_POSTS],
       ];
 
-      // Invalidate semua query terkait
-      queriesToInvalidate.forEach((queryKey) => {
-        queryClient.invalidateQueries({ queryKey });
-      });
+      // Invalidate dengan delay untuk menghindari race condition
+      setTimeout(() => {
+        queriesToInvalidate.forEach((queryKey) => {
+          queryClient.invalidateQueries({ queryKey });
+        });
+      }, 100);
 
-      // ✅ TAMBAHAN: Force refetch untuk query yang paling penting
-      queryClient.refetchQueries({
-        queryKey: [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
-      });
+      // ✅ Force refetch query paling penting
+      setTimeout(() => {
+        queryClient.refetchQueries({
+          queryKey: [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
+        });
+      }, 200);
     },
 
     onError: (error, variables, context) => {
-      console.log(variables);
       console.error('❌ Like mutation error:', error);
 
-      // ✅ Rollback optimistic updates on error
-      if (context?.previousPost) {
-        queryClient.setQueryData(
-          [QUERY_KEYS.GET_POST_BY_ID, context.postId],
-          context.previousPost,
-        );
-      }
-      if (context?.previousRecentPosts) {
-        queryClient.setQueryData(
-          [QUERY_KEYS.GET_RECENT_POSTS],
-          context.previousRecentPosts,
-        );
-      }
-      if (context?.previousInfinitePosts) {
-        queryClient.setQueryData(
-          [QUERY_KEYS.GET_INFINITE_POSTS],
-          context.previousInfinitePosts,
-        );
+      // ✅ Rollback optimistic updates
+      if (context?.previousData) {
+        const { previousData } = context;
+
+        if (previousData.post) {
+          queryClient.setQueryData(
+            [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
+            previousData.post,
+          );
+        }
+
+        if (previousData.recentPosts) {
+          queryClient.setQueryData(
+            [QUERY_KEYS.GET_RECENT_POSTS],
+            previousData.recentPosts,
+          );
+        }
+
+        if (previousData.infinitePosts) {
+          queryClient.setQueryData(
+            [QUERY_KEYS.GET_INFINITE_POSTS],
+            previousData.infinitePosts,
+          );
+        }
+
+        if (previousData.userLikedPosts) {
+          queryClient.setQueryData(
+            [QUERY_KEYS.GET_USER_LIKED_POSTS, variables.userId],
+            previousData.userLikedPosts,
+          );
+        }
       }
 
-      console.error('Failed to like/unlike post:', error.message);
+      // ✅ Refetch untuk data yang benar
+      setTimeout(() => {
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
+        });
+      }, 500);
     },
 
     onSettled: (data, error, variables) => {
       console.log(data);
       console.log(error);
-
-      // ✅ PERBAIKAN: Always refetch key queries untuk ensure consistency
-      Promise.all([
+      // ✅ Final cleanup - ensure consistency
+      setTimeout(() => {
         queryClient.invalidateQueries({
           queryKey: [QUERY_KEYS.GET_POST_BY_ID, variables.postId],
-        }),
+        });
         queryClient.invalidateQueries({
           queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
-        }),
+        });
         queryClient.invalidateQueries({
           queryKey: [QUERY_KEYS.GET_INFINITE_POSTS],
-        }),
-      ]).then(() => {
-        console.log('✅ All post queries invalidated after like operation');
-      });
+        });
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEYS.GET_USER_LIKED_POSTS, variables.userId],
+        });
+      }, 1000);
     },
   });
 };
@@ -417,7 +567,10 @@ export const useGetPostById = (postId?: string) => {
     queryKey: [QUERY_KEYS.GET_POST_BY_ID, postId],
     queryFn: () => getPostById(postId || ''),
     enabled: !!postId,
-    staleTime: 1000 * 60 * 5, // 5 menit
+    staleTime: 1000 * 30, // 30 seconds
+    gcTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: true,
+    retry: 2,
   });
 };
 
@@ -444,20 +597,16 @@ export const useGetPosts = () => {
   return useInfiniteQuery({
     queryKey: [QUERY_KEYS.GET_INFINITE_POSTS],
     queryFn: getInfinitePosts,
-    // ✅ PENTING: initialPageParam harus undefined (string)
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => {
-      // ✅ Check apakah ada documents
       if (!lastPage || lastPage.documents.length === 0) {
         return undefined;
       }
-
-      // ✅ Ambil document ID dari post terakhir
-      const lastId = lastPage.documents[lastPage.documents.length - 1].$id;
-
-      return lastId; // Return document ID sebagai string
+      return lastPage.documents[lastPage.documents.length - 1].$id;
     },
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 30, // 30 seconds
+    gcTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: true,
   });
 };
 
@@ -665,10 +814,18 @@ export const useGetUserLikedPosts = (userId: string) => {
     queryKey: [QUERY_KEYS.GET_USER_LIKED_POSTS, userId],
     queryFn: () => getUserLikedPosts(userId),
     enabled: !!userId,
-    staleTime: 1000 * 30, // ✅ Kurangi stale time untuk data yang lebih fresh
-    gcTime: 1000 * 60 * 5, // 5 minutes
-    refetchOnWindowFocus: true, // ✅ Refetch saat window focus
-    refetchOnMount: true, // ✅ Selalu refetch saat mount
+    staleTime: 1000 * 10, // ✅ Reduce stale time untuk data segar
+    gcTime: 1000 * 60 * 2, // 2 minutes
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    // ✅ Add retry logic
+    retry: (failureCount, error) => {
+      console.log(error);
+      if (failureCount >= 2) return false;
+      return true;
+    },
+    // ✅ Add refetch interval for critical data
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 };
 
@@ -765,5 +922,15 @@ export const useGetUserStats = (userId: string) => {
     enabled: !!userId,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 15, // 15 minutes
+  });
+};
+
+export const useCheckUserLikedPost = (userId: string, postId: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.CHECK_USER_LIKED_POST, userId, postId],
+    queryFn: () => checkUserLikedPost(userId, postId),
+    enabled: !!userId && !!postId,
+    staleTime: 1000 * 5, // 5 seconds
+    gcTime: 1000 * 60, // 1 minute
   });
 };

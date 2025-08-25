@@ -39,6 +39,7 @@ export type IUpdatePost = {
   location?: string;
   tags?: string;
 };
+
 export type IUser = {
   id: string;
   name: string;
@@ -58,6 +59,27 @@ export type INewUser = {
   username: string;
   password: string;
 };
+
+// Add this new interface for Post
+export interface IPost {
+  $id: string;
+  $createdAt: string;
+  $updatedAt?: string;
+  caption?: string;
+  imageUrl: string; // This is the main property your API uses
+  imageId: string;
+  location?: string;
+  tags?: string[];
+  creator: {
+    $id: string;
+    name: string;
+    imageUrl?: string;
+    username?: string;
+    email?: string;
+  };
+  likes?: any[];
+  likesCount?: number;
+}
 
 export interface IFollow {
   $id: string;

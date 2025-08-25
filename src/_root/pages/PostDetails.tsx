@@ -5,14 +5,35 @@ import { useGetPostById } from '@/lib/tanstack-query/queriesAndMutations';
 import { formatRelativeTime } from '@/types/utils';
 import { useUserContext } from '@/context/AuthContext';
 
+// Define Post type based on your API structure
+interface IPost {
+  $id: string;
+  $createdAt: string;
+  caption?: string;
+  imageUrl?: string;
+  imageId?: string;
+  location?: string;
+  tags?: string[];
+  creator?: {
+    $id: string;
+    name: string;
+    imageUrl?: string;
+    username?: string;
+  };
+  likes?: any[];
+  likesCount?: number;
+}
+
 const PostDetails = () => {
   const { id } = useParams();
   const { data: post, isPending, error } = useGetPostById(id || '');
   const { user } = useUserContext();
 
+  const typedPost = post as IPost | undefined;
+
   // Process tags safely
   const tags =
-    post?.tags
+    typedPost?.tags
       ?.map((tag: string) =>
         tag
           .toLowerCase()
@@ -23,7 +44,7 @@ const PostDetails = () => {
 
   const handleDeletePost = () => {
     // Implementation for delete post
-    console.log('Delete post:', post?.$id);
+    console.log('Delete post:', typedPost?.$id);
   };
 
   if (isPending) return <AppLoader />;
@@ -41,7 +62,7 @@ const PostDetails = () => {
   }
 
   // Handle no post found
-  if (!post) {
+  if (!typedPost) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
         <p className="text-light-2 text-lg mb-4">Post not found</p>
@@ -52,21 +73,21 @@ const PostDetails = () => {
     );
   }
 
-  // Get image URL with fallback
+  // Get image URL with fallback - check the actual property name from your API
   const imageUrl =
-    post.imageUrl || post.image_url || '/assets/images/placeholder.png';
+    (typedPost as any).imageUrl ||
+    (typedPost as any).image_url ||
+    '/assets/images/placeholder.png';
 
   // Get creator info with fallbacks
-  const creatorName = post.creator?.name || 'Unknown User';
+  const creatorName = typedPost.creator?.name || 'Unknown User';
   const creatorImageUrl =
-    post.creator?.imageUrl ||
-    post.creator?.image_url ||
-    '/assets/icons/profile-placeholder.svg';
-  const creatorId = post.creator?.$id || post.creator?.id;
+    typedPost.creator?.imageUrl || '/assets/icons/profile-placeholder.svg';
+  const creatorId = typedPost.creator?.$id;
 
   // Format date safely
-  const formattedDate = post.$createdAt
-    ? formatRelativeTime(post.$createdAt)
+  const formattedDate = typedPost.$createdAt
+    ? formatRelativeTime(typedPost.$createdAt)
     : 'Just now';
 
   return (
@@ -108,11 +129,11 @@ const PostDetails = () => {
                   <p className="subtle-semibold lg:small-regular">
                     {formattedDate}
                   </p>
-                  {post.location && (
+                  {typedPost.location && (
                     <>
                       -
                       <p className="subtle-semibold lg:small-regular">
-                        {post.location}
+                        {typedPost.location}
                       </p>
                     </>
                   )}
@@ -124,7 +145,7 @@ const PostDetails = () => {
             {user?.id === creatorId && (
               <div className="flex-center gap-4">
                 <Link
-                  to={`/update-post/${post.$id}`}
+                  to={`/update-post/${typedPost.$id}`}
                   className="flex items-center justify-center"
                 >
                   <img
@@ -155,7 +176,9 @@ const PostDetails = () => {
 
           {/* Post Content */}
           <div className="small-medium lg:base-regular flex flex-col flex-1">
-            {post.caption && <p className="break-all mb-2">{post.caption}</p>}
+            {typedPost.caption && (
+              <p className="break-all mb-2">{typedPost.caption}</p>
+            )}
 
             {tags.length > 0 && (
               <ul className="flex flex-wrap gap-1 mt-2">
@@ -170,7 +193,7 @@ const PostDetails = () => {
 
           {/* Post Stats */}
           <div className="w-full">
-            <PostStats post={post} userId={user?.id || ''} />
+            <PostStats post={post as any} userId={user?.id || ''} />
           </div>
         </div>
       </div>

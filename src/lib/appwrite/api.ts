@@ -3,6 +3,11 @@ import { ID, Query } from 'appwrite';
 import type { INewUser, IUpdatePost } from '@/types';
 import { account, appwriteConfig, avatars, databases, storage } from './config';
 
+const LIKE_FIELDS = {
+  USER: 'users',
+  POST: 'posts',
+};
+
 export async function createUserAccount(user: INewUser) {
   try {
     const newAccount = await account.create(
@@ -215,17 +220,14 @@ export async function getRecentPosts() {
 
     if (!posts) throw Error;
 
-    // ✅ PERBAIKAN: Konsisten menggunakan field name 'posts' (plural)
+    // ✅ FIXED: Consistent field names and proper error handling
     const postsWithLikes = await Promise.all(
       posts.documents.map(async (post) => {
         try {
           const likes = await databases.listDocuments(
             appwriteConfig.databaseId,
             appwriteConfig.likesCollectionId,
-            [
-              Query.equal('posts', post.$id), // ✅ Konsisten dengan database schema
-              Query.limit(100),
-            ],
+            [Query.equal(LIKE_FIELDS.POST, post.$id), Query.limit(100)],
           );
 
           return {
@@ -258,13 +260,13 @@ export async function likePost(postId: string, userId: string) {
   try {
     console.log('🔄 Like operation:', { postId, userId });
 
-    // ✅ CRITICAL: Check existing like dengan field name yang benar
+    // ✅ Check existing like with consistent field names
     const existingLike = await databases.listDocuments(
       appwriteConfig.databaseId,
       appwriteConfig.likesCollectionId,
       [
-        Query.equal('users', userId), // ✅ Sesuaikan dengan database structure (plural)
-        Query.equal('posts', postId), // ✅ Sesuaikan dengan database structure (plural)
+        Query.equal(LIKE_FIELDS.USER, userId),
+        Query.equal(LIKE_FIELDS.POST, postId),
         Query.limit(1),
       ],
     );
@@ -280,7 +282,13 @@ export async function likePost(postId: string, userId: string) {
       );
 
       console.log('❌ Post unliked successfully');
-      return { action: 'unliked', likeId: null };
+      return {
+        action: 'unliked',
+        likeId: null,
+        postId,
+        userId,
+        success: true,
+      };
     } else {
       // Like: create new like record
       const newLike = await databases.createDocument(
@@ -288,19 +296,32 @@ export async function likePost(postId: string, userId: string) {
         appwriteConfig.likesCollectionId,
         ID.unique(),
         {
-          users: userId, // ✅ Field name harus sama dengan yang di database
-          posts: postId, // ✅ Field name harus sama dengan yang di database
+          [LIKE_FIELDS.USER]: userId,
+          [LIKE_FIELDS.POST]: postId,
         },
       );
 
       if (!newLike) throw Error('Failed to create like');
 
       console.log('✅ Post liked successfully:', newLike.$id);
-      return { action: 'liked', likeId: newLike.$id };
+      return {
+        action: 'liked',
+        likeId: newLike.$id,
+        postId,
+        userId,
+        success: true,
+      };
     }
   } catch (error) {
     console.error('❌ Like post error:', error);
-    throw error;
+    return {
+      action: 'error',
+      likeId: null,
+      postId,
+      userId,
+      success: false,
+      error,
+    };
   }
 }
 
@@ -348,7 +369,7 @@ export async function getPostById(postId: string) {
   try {
     console.log('Fetching post by ID:', postId);
 
-    // ✅ Get post dengan semua relationship data
+    // ✅ Get post with relationships
     const post = await databases.getDocument(
       appwriteConfig.databaseId,
       appwriteConfig.postCollectionId,
@@ -357,19 +378,15 @@ export async function getPostById(postId: string) {
 
     if (!post) throw Error('Post not found');
 
-    console.log('Raw post data:', post);
-
-    // ✅ PERBAIKAN: Populate creator data jika belum ada
+    // ✅ Populate creator data if needed
     let creatorData = post.creator;
     if (typeof post.creator === 'string') {
-      // Jika creator hanya ID string, fetch full user data
       try {
         creatorData = await databases.getDocument(
           appwriteConfig.databaseId,
           appwriteConfig.userCollectionId,
           post.creator,
         );
-        console.log('Fetched creator data:', creatorData);
       } catch (error) {
         console.log('Error fetching creator:', error);
         creatorData = {
@@ -380,16 +397,14 @@ export async function getPostById(postId: string) {
       }
     }
 
-    // ✅ Get likes data untuk post ini
+    // ✅ Get likes with consistent field names
     const likes = await databases.listDocuments(
       appwriteConfig.databaseId,
       appwriteConfig.likesCollectionId,
-      [Query.equal('posts', post.$id), Query.limit(100)],
+      [Query.equal(LIKE_FIELDS.POST, post.$id), Query.limit(100)],
     );
 
-    console.log('Fetched likes data:', likes);
-
-    // ✅ PERBAIKAN: Ensure all required properties exist
+    // ✅ Ensure all required properties exist
     const enrichedPost = {
       ...post,
       creator: creatorData,
@@ -399,8 +414,6 @@ export async function getPostById(postId: string) {
       likes: likes.documents,
       likesCount: likes.total,
     };
-
-    console.log('Final enriched post:', enrichedPost);
 
     return enrichedPost;
   } catch (error) {
@@ -491,17 +504,14 @@ export async function getInfinitePosts({ pageParam }: { pageParam?: string }) {
 
     if (!posts) throw Error;
 
-    // ✅ PERBAIKAN: Konsisten menggunakan field name 'posts' (plural)
+    // ✅ Consistent field names
     const postsWithLikes = await Promise.all(
       posts.documents.map(async (post) => {
         try {
           const likes = await databases.listDocuments(
             appwriteConfig.databaseId,
             appwriteConfig.likesCollectionId,
-            [
-              Query.equal('posts', post.$id), // ✅ Konsisten dengan database schema
-              Query.limit(100),
-            ],
+            [Query.equal(LIKE_FIELDS.POST, post.$id), Query.limit(100)],
           );
 
           return {
@@ -1209,31 +1219,28 @@ export async function getUserLikedPosts(userId: string) {
   try {
     console.log('Getting liked posts for user:', userId);
 
-    // ✅ Get likes dengan field name yang benar
+    // ✅ Get likes with consistent field names
     const userLikes = await databases.listDocuments(
       appwriteConfig.databaseId,
       appwriteConfig.likesCollectionId,
       [
-        Query.equal('users', userId), // ✅ Changed from 'user' to 'users'
+        Query.equal(LIKE_FIELDS.USER, userId),
         Query.orderDesc('$createdAt'),
         Query.limit(50),
       ],
     );
 
-    console.log('Raw likes data:', userLikes);
     console.log('User likes found:', userLikes.documents.length);
 
     if (!userLikes.documents.length) {
       return { documents: [], total: 0 };
     }
 
-    // ✅ Extract posts dari relationship
+    // ✅ Extract posts from relationships
     const likedPosts = userLikes.documents
       .map((like: any) => {
-        console.log('Processing like:', like);
-
-        // ✅ Relationship field sekarang 'posts' (plural)
-        const post = like.posts;
+        // ✅ Relationship field 'posts' (plural)
+        const post = like[LIKE_FIELDS.POST];
 
         if (!post || !post.$id) {
           console.log('Post data not found for like:', like.$id);
@@ -1247,9 +1254,6 @@ export async function getUserLikedPosts(userId: string) {
         };
       })
       .filter((post) => post !== null);
-
-    console.log('Processed liked posts:', likedPosts.length);
-    console.log('Sample liked post:', likedPosts[0]);
 
     return {
       documents: likedPosts,
@@ -1391,5 +1395,24 @@ export async function getUserStats(userId: string) {
       followingCount: 0,
       likesReceived: 0,
     };
+  }
+}
+
+export async function checkUserLikedPost(userId: string, postId: string) {
+  try {
+    const existingLike = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.likesCollectionId,
+      [
+        Query.equal(LIKE_FIELDS.USER, userId),
+        Query.equal(LIKE_FIELDS.POST, postId),
+        Query.limit(1),
+      ],
+    );
+
+    return existingLike.documents.length > 0 ? existingLike.documents[0] : null;
+  } catch (error) {
+    console.log('Check user liked post error:', error);
+    return null;
   }
 }

@@ -29,6 +29,8 @@ export const QUERY_KEYS = {
   GET_USER_POSTS: 'getUserPosts',
   GET_FILE_PREVIEW: 'getFilePreview',
   GET_SAVED_POSTS: 'getSavedPosts',
+  CHECK_USER_LIKED_POST: 'checkUserLikedPost',
+  GET_POST_LIKES: 'getPostLikes',
 
   //  SEARCH KEYS
   SEARCH_POSTS: 'getSearchPosts',
